@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <meta name="description" content="LeBha Group — Many Services. One Vision. An umbrella of diverse businesses including IT freelancing, event management, interior designing, catering, organic farms and more.">
     <meta name="keywords" content="LeBha Group, Lebha Creatives, Lebha Spaces, Lebha Events, Lebha Foods, Lebha Studios, Lebha Farms, IT freelancing, event management, interior design, catering, organic fruits">
     <meta property="og:title" content="LeBha Group — Many Services. One Vision.">
@@ -129,23 +132,24 @@
         .btn-outline:hover { background: rgba(255,255,255,0.1); border-color: var(--white); transform: translateY(-2px); }
 
         /* ── Animations ── */
-        @keyframes slideUp   { from { transform:translateY(28px); opacity:0.3; } to { transform:translateY(0); opacity:1; } }
+        @keyframes slideUp   { from { transform:translateY(22px); } to { transform:translateY(0); } }
         @keyframes fadeIn    { from { opacity:0; } to { opacity:1; } }
         @keyframes float     { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-10px); } }
         @keyframes pulseGold { 0%,100% { box-shadow:0 0 0 0 rgba(201,168,76,0.4); } 50% { box-shadow:0 0 0 12px rgba(201,168,76,0); } }
 
-        .reveal { opacity:0; transform:translateY(20px); transition: opacity 0.65s ease, transform 0.65s ease; }
-        .reveal.visible { opacity:1; transform:translateY(0); }
+        /* reveal: opacity only — no transform to avoid stacking context issues */
+        .reveal { opacity:0; transition: opacity 0.6s ease; }
+        .reveal.visible { opacity:1; }
 
         /* ── Header / Nav ── */
-        header {
+        #site-header {
             position: fixed;
             top: 0; left: 0; right: 0;
             z-index: 1000;
             transition: background var(--ease), box-shadow var(--ease);
         }
 
-        header.scrolled {
+        #site-header.scrolled {
             background: rgba(255,255,255,0.97);
             backdrop-filter: blur(12px);
             -webkit-backdrop-filter: blur(12px);
@@ -176,7 +180,7 @@
             padding-bottom: 4px;
         }
 
-        header.scrolled .nav-links a { color: var(--navy); }
+        #site-header.scrolled .nav-links a { color: var(--navy); }
 
         .nav-links a::after {
             content: '';
@@ -191,7 +195,7 @@
         .nav-links a.active::after { width: 100%; }
 
         .nav-links a:hover { color: var(--gold); }
-        header.scrolled .nav-links a:hover { color: var(--gold); }
+        #site-header.scrolled .nav-links a:hover { color: var(--gold); }
 
         .nav-actions { display: flex; align-items: center; gap: 12px; }
 
@@ -212,7 +216,7 @@
 
         .hamburger { display: none; flex-direction: column; gap: 5px; cursor: pointer; background: none; border: none; padding: 4px; }
         .hamburger span { display: block; width: 24px; height: 2px; background: var(--white); border-radius: 2px; transition: var(--ease); }
-        header.scrolled .hamburger span { background: var(--navy); }
+        #site-header.scrolled .hamburger span { background: var(--navy); }
 
         /* Mobile nav overlay */
         .nav-overlay {
@@ -287,7 +291,7 @@
             height: 130px; width: auto;
             margin: 0 auto 28px;
             filter: drop-shadow(0 4px 24px rgba(0,0,0,0.35));
-            animation: slideUp 0.7s ease forwards;
+            animation: slideUp 0.6s ease;
         }
 
         .hero-eyebrow {
@@ -366,7 +370,7 @@
         .brand-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
         /* ── About ── */
-        #about { padding: 100px 0; background: var(--white); }
+        #about { padding: 100px 0; background: #ffffff !important; position: relative; z-index: 2; isolation: isolate; }
 
         .about-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
 
@@ -423,7 +427,7 @@
         .value-item p  { font-size: 0.78rem; color: var(--gray-500); margin-bottom: 0; line-height: 1.5; }
 
         /* ── Services ── */
-        #services { padding: 100px 0; background: var(--gray-100); }
+        #services { padding: 100px 0; background: #F2F4F8 !important; position: relative; z-index: 2; isolation: isolate; }
 
         .services-header { text-align: center; margin-bottom: 60px; }
         .services-header .gold-line { margin: 16px auto 40px; }
@@ -485,7 +489,7 @@
         .service-cta:hover { gap: 10px; }
 
         /* ── Contact ── */
-        #contact { padding: 100px 0; background: var(--white); }
+        #contact { padding: 100px 0; background: #ffffff !important; position: relative; z-index: 2; isolation: isolate; }
 
         .contact-grid { display: grid; grid-template-columns: 1fr 1.2fr; gap: 80px; align-items: start; }
 
@@ -900,7 +904,7 @@
     <div class="hero-deco hero-deco-3"></div>
 
     <div class="hero-content">
-        <img src="assets/LBGroup_Logo.png" alt="LeBha Group" class="hero-logo">
+        <img src="assets/LBGroup_Logo_Hero.png" alt="LeBha Group" class="hero-logo">
         <p class="hero-eyebrow">Welcome to</p>
         <h1 class="hero-title">LeBha <span>Group</span></h1>
         <p class="hero-tagline">— Many Services. One Vision. —</p>
@@ -936,10 +940,6 @@
             <div class="about-visual reveal">
                 <div class="about-logo-wrap">
                     <img src="assets/LBGroup_Logo.png" alt="LeBha Group — Many Services One Vision">
-                </div>
-                <div class="about-badge">
-                    <strong>6</strong>
-                    <span>Brands. One Group.</span>
                 </div>
             </div>
 
@@ -988,12 +988,12 @@
 ════════════════════════════════════ -->
 <section id="services" aria-labelledby="services-heading">
     <div class="container">
-        <header class="services-header">
+        <div class="services-header">
             <p class="section-tag">What We Offer</p>
             <h2 class="section-heading" id="services-heading">Our Six Pillars of Excellence</h2>
             <div class="gold-line"></div>
             <p class="section-sub">Six distinct brands, each a specialist in its domain — all united under the LeBha vision of quality, creativity, and purpose.</p>
-        </header>
+        </div>
 
         <div class="services-grid">
 
