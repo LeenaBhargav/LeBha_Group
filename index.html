@@ -1517,31 +1517,37 @@ let recognition = null, voiceRetries = 0;
 const S = { state: 'welcome', intent: null, data: {} };
 
 // ── Voice Output ──────────────────────────────────────────────────────────
-// Warm up voices as soon as the page loads (browsers load them async)
-let _voices = [];
-function loadVoices() { _voices = window.speechSynthesis.getVoices(); }
+// Trigger voice loading early — Edge/Chrome load voices asynchronously
 if ('speechSynthesis' in window) {
-    loadVoices();
-    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
+    window.speechSynthesis.getVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', () => window.speechSynthesis.getVoices());
 }
 
 function speak(text) {
     if (!('speechSynthesis' in window)) return;
-    // Strip emoji and non-ASCII symbols so TTS doesn't read their names
+    // Strip emoji & non-printable chars so TTS doesn't read their names
     const clean = text.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ').trim();
     if (!clean) return;
+
     window.speechSynthesis.cancel();
-    // Small delay after cancel to avoid browser race condition
-    setTimeout(() => {
-        const u = new SpeechSynthesisUtterance(clean);
-        // Prefer en-IN, fall back to any English voice, then browser default
-        const preferred = _voices.find(v => v.lang === 'en-IN')
-                       || _voices.find(v => v.lang === 'en-GB')
-                       || _voices.find(v => v.lang.startsWith('en'));
-        if (preferred) u.voice = preferred;
-        u.lang = 'en-IN'; u.rate = 0.9; u.pitch = 1;
-        window.speechSynthesis.speak(u);
-    }, 120);
+
+    const u = new SpeechSynthesisUtterance(clean);
+
+    // Pick the best available English voice — en-IN preferred, falls back gracefully
+    const voices = window.speechSynthesis.getVoices();
+    const voice = voices.find(v => v.lang === 'en-IN')
+               || voices.find(v => v.lang === 'en-GB')
+               || voices.find(v => v.lang === 'en-US')
+               || voices.find(v => v.lang.startsWith('en'));
+
+    if (voice) { u.voice = voice; u.lang = voice.lang; }
+    // Don't force en-IN lang if no matching voice — let browser use its default
+    u.rate = 0.9; u.pitch = 1;
+    u.onerror = e => console.error('[LeBha TTS] error:', e.error);
+
+    // resume() unsticks the Edge/Chrome speechSynthesis stall bug
+    window.speechSynthesis.resume();
+    window.speechSynthesis.speak(u);
 }
 
 // ── Typing Indicator ──────────────────────────────────────────────────────
