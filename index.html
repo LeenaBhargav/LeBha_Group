@@ -1525,29 +1525,30 @@ if ('speechSynthesis' in window) {
 
 function speak(text) {
     if (!('speechSynthesis' in window)) return;
-    // Strip emoji & non-printable chars so TTS doesn't read their names
     const clean = text.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ').trim();
     if (!clean) return;
 
     window.speechSynthesis.cancel();
 
-    const u = new SpeechSynthesisUtterance(clean);
+    // Wait 120ms after cancel — Edge/Chrome need this gap or synthesis-failed fires
+    setTimeout(() => {
+        const voices = window.speechSynthesis.getVoices();
+        const u = new SpeechSynthesisUtterance(clean);
 
-    // Pick the best available English voice — en-IN preferred, falls back gracefully
-    const voices = window.speechSynthesis.getVoices();
-    const voice = voices.find(v => v.lang === 'en-IN')
-               || voices.find(v => v.lang === 'en-GB')
-               || voices.find(v => v.lang === 'en-US')
-               || voices.find(v => v.lang.startsWith('en'));
+        // On Windows Edge, Microsoft voices are the most reliable
+        const voice = voices.find(v => /microsoft.*natural/i.test(v.name) && v.lang.startsWith('en'))
+                   || voices.find(v => /microsoft/i.test(v.name) && v.lang.startsWith('en'))
+                   || voices.find(v => v.lang === 'en-IN')
+                   || voices.find(v => v.lang === 'en-GB')
+                   || voices.find(v => v.lang === 'en-US')
+                   || voices.find(v => v.lang.startsWith('en'));
 
-    if (voice) { u.voice = voice; u.lang = voice.lang; }
-    // Don't force en-IN lang if no matching voice — let browser use its default
-    u.rate = 0.9; u.pitch = 1;
-    u.onerror = e => console.error('[LeBha TTS] error:', e.error);
-
-    // resume() only if paused — calling it when not paused can break short utterances
-    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
-    window.speechSynthesis.speak(u);
+        if (voice) { u.voice = voice; u.lang = voice.lang; }
+        u.rate = 0.9; u.pitch = 1;
+        u.onerror = e => console.error('[LeBha TTS] error:', e.error);
+        if (window.speechSynthesis.paused) window.speechSynthesis.resume();
+        window.speechSynthesis.speak(u);
+    }, 120);
 }
 
 // ── Typing Indicator ──────────────────────────────────────────────────────
@@ -2000,8 +2001,7 @@ function startListening() {
 
     // Re-create recognition each time to avoid stale state in Edge
     recognition = new SR();
-    // en-US recognises Indian English reliably; en-IN causes timeouts in Edge
-    recognition.lang = 'en-US';
+    // Use browser's default language — forcing a lang causes network errors in Edge
     recognition.continuous = false;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
@@ -2026,7 +2026,7 @@ function startListening() {
         }
         if (e.error === 'network') {
             voiceRetries = 0;
-            botMsg("Voice needs an internet connection 😊 Please check your connection and try again.", []);
+            botMsg("Edge is having trouble reaching the voice server 😊\n\nTip: Try using Google Chrome for the best voice experience — or type your message below!", []);
             return;
         }
         if (e.error === 'audio-capture') {
