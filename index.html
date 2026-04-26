@@ -815,6 +815,61 @@
 
         .chat-send:hover { background: var(--gold-dark); }
 
+        /* ── Chatbot Enhancements ── */
+        .chat-restart-bar {
+            padding: 4px 14px;
+            display: flex; justify-content: flex-end;
+            border-bottom: 1px solid var(--gray-200);
+            background: var(--off-white);
+        }
+        .chat-restart-btn {
+            background: none; border: none;
+            color: var(--gray-500); font-size: 0.7rem;
+            cursor: pointer; font-family: var(--font-body);
+            padding: 4px 8px; border-radius: 12px;
+            transition: var(--ease);
+            display: flex; align-items: center; gap: 4px;
+        }
+        .chat-restart-btn:hover { color: var(--navy); background: var(--gray-200); }
+
+        .chat-mic-btn {
+            width: 34px; height: 34px; flex-shrink: 0;
+            background: var(--navy);
+            border: none; border-radius: 50%;
+            cursor: pointer; display: flex;
+            align-items: center; justify-content: center;
+            color: var(--white); font-size: 0.78rem;
+            transition: background var(--ease);
+        }
+        .chat-mic-btn:hover { background: var(--navy-light); }
+        .chat-mic-btn.listening {
+            background: #E53E3E;
+            animation: micPulse 0.9s ease-in-out infinite;
+        }
+        @keyframes micPulse {
+            0%,100% { box-shadow: 0 0 0 0 rgba(229,62,62,0.5); }
+            50%      { box-shadow: 0 0 0 10px rgba(229,62,62,0); }
+        }
+
+        .chat-typing {
+            display: flex; align-items: center; gap: 5px;
+            padding: 10px 14px;
+            background: var(--gray-100);
+            border-radius: 4px 12px 12px 12px;
+            align-self: flex-start;
+        }
+        .chat-typing span {
+            width: 7px; height: 7px; border-radius: 50%;
+            background: var(--gray-500);
+            animation: typingDot 1.2s ease-in-out infinite;
+        }
+        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingDot {
+            0%,60%,100% { transform: translateY(0); opacity: 0.35; }
+            30%          { transform: translateY(-5px); opacity: 1; }
+        }
+
         /* Scroll to top */
         .scroll-top {
             position: fixed; bottom: 96px; right: 28px;
@@ -852,6 +907,7 @@
             .modal-header, .modal-body, .dashboard-panel { padding-left: 22px; padding-right: 22px; }
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -1320,12 +1376,17 @@
             <div class="chat-online" title="Online" aria-label="Online"></div>
         </div>
 
+        <div class="chat-restart-bar">
+            <button class="chat-restart-btn" onclick="restartChat()" title="Start over">↺ Start Over</button>
+        </div>
+
         <div class="chat-messages" id="chat-messages"></div>
         <div class="chat-quick-btns" id="chat-quick-btns"></div>
 
         <div class="chat-input-area">
+            <button class="chat-mic-btn" id="chat-mic-btn" onclick="startListening()" title="Voice input" aria-label="Voice input">🎙️</button>
             <input type="text" class="chat-input" id="chat-input"
-                   placeholder="Type your message..." aria-label="Chat message">
+                   placeholder="Type or speak your message..." aria-label="Chat message">
             <button class="chat-send" onclick="sendChat()" aria-label="Send">➤</button>
         </div>
     </div>
@@ -1435,7 +1496,14 @@ document.getElementById('contact-form').addEventListener('submit', e => {
     e.target.reset();
 });
 
-/* ── Chatbot ── */
+/* ── Chatbot v2 — LeBha Smart Assistant ── */
+
+// EmailJS Setup — sign up free at emailjs.com, then fill in your IDs below:
+// 1. Add Gmail as a service → copy Service ID
+// 2. Create a template with: {{from_name}}, {{phone}}, {{service}}, {{message}} → copy Template ID
+// 3. Account › API Keys → copy Public Key
+const EJS = { svc: 'YOUR_SERVICE_ID', tpl: 'YOUR_TEMPLATE_ID', key: 'YOUR_PUBLIC_KEY' };
+
 const chatToggleBtn = document.getElementById('chat-toggle-btn');
 const chatWindow    = document.getElementById('chat-window');
 const chatMessages  = document.getElementById('chat-messages');
@@ -1443,47 +1511,73 @@ const chatQuickBtns = document.getElementById('chat-quick-btns');
 const chatInput     = document.getElementById('chat-input');
 
 let chatOpen = false, chatStarted = false;
+let recognition = null, voiceRetries = 0;
 
-const BOT = {
-    greeting:  { msg: "Hello! Welcome to LeBha Group 👋\n\nI'm your personal assistant here to help you explore our services, book an enquiry, or guide you to the right team.\n\nHow can I help you today?",                                                                                   quick: ['Our Services', 'Make an Enquiry', 'Book a Service', 'About LeBha', 'Contact Us'] },
-    services:  { msg: "We offer 6 world-class services under LeBha Group:\n\n💼 Lebha Creatives — IT Freelancing\n🛋️ Lebha Spaces — Interior Design\n🎪 Lebha Events — Event Management\n🍽️ Lebha Foods — Catering\n▶️ Lebha Studios — Recipe Videos\n🌿 Lebha Farms — Organic Fruits\n\nWhich service would you like to explore?", quick: ['IT Freelancing', 'Interior Design', 'Event Management', 'Catering', 'Recipe Videos', 'Organic Fruits'] },
-    creatives: { msg: "💼 Lebha Creatives — IT Freelancing\n\nConnect with skilled IT professionals for your projects:\n• Software development\n• Data solutions & testing\n• Web & app development\n• IT consulting\n\nReady to hire a professional?",                                           quick: ['Hire a Professional', 'Make an Enquiry', 'All Services'] },
-    spaces:    { msg: "🛋️ Lebha Spaces — Interior Designing\n\nTransform your space with our creative design services:\n• Residential & commercial design\n• Space planning & visualisation\n• Material & furniture selection\n• Full project management\n\nReady to start your project?",     quick: ['Start a Project', 'Make an Enquiry', 'All Services'] },
-    events:    { msg: "🎪 Lebha Events — Event Management\n\nWe craft memorable events with precision:\n• Weddings & receptions\n• Corporate events\n• Private celebrations\n• Destination events\n\nTell us about your event!",                                                                 quick: ['Plan an Event', 'Make an Enquiry', 'All Services'] },
-    foods:     { msg: "🍽️ Lebha Foods — Catering\n\nPremium catering for all occasions:\n• Corporate lunches & dinners\n• Wedding catering\n• Private parties\n• Custom menus crafted for you\n\nWant to book our catering service?",                                                         quick: ['Book Catering', 'Make an Enquiry', 'All Services'] },
-    studios:   { msg: "▶️ Lebha Studios — Recipe Videos\n\nExplore our world of refreshing, authentic cooking recipes on YouTube!\n\nNew recipes every week — from quick weekday meals to special occasion dishes.\n\n🔴 Subscribe to never miss a recipe!",                                   quick: ['Open YouTube Channel', 'All Services'] },
-    farms:     { msg: "🌿 Lebha Farms — Organic Fruits\n\nFresh, certified organic fruits delivered to your doorstep:\n• 100% chemical-free\n• Directly sourced from our farms\n• Seasonal & exotic varieties\n• Home delivery available\n\nWant to place an order?",                        quick: ['Order Fruits', 'Make an Enquiry', 'All Services'] },
-    enquiry:   { msg: "I'd love to help you make an enquiry! 📋\n\nPlease share:\n1️⃣ Your Name\n2️⃣ Your Email\n3️⃣ Service you're interested in\n4️⃣ Brief description of your need\n\nOr use our Contact Form for the fastest response — our team will reply within 24 hours!",           quick: ['Go to Contact Form', 'All Services'] },
-    about:     { msg: "✨ About LeBha Group\n\nLeBha Group represents the coming together of ideas, passions, and possibilities — inspired by the essence of Leena Bhargav.\n\nWe are an umbrella of 6 diverse businesses united by one vision:\n\n\"Many Services. One Vision.\"\n\nCore values: Creativity · Authenticity · Functionality · Unity", quick: ['Our Services', 'Contact Us'] },
-    contact:   { msg: "📞 Contact LeBha Group\n\n📧 Email: ch.leena89@gmail.com\n▶️ YouTube: Lebha Studios\n\nYou can also fill in the Contact form on this page — scroll down and send us a message. We respond within 24 hours!",                                                            quick: ['Go to Contact Form', 'Our Services'] },
-    fallback:  { msg: "I'm not sure I understood that. Let me show you what I can help with:",                                                                                                                                                                                                  quick: ['Our Services', 'Make an Enquiry', 'About LeBha', 'Contact Us'] }
-};
+// Session state — remembers context within the conversation
+const S = { state: 'welcome', intent: null, data: {} };
 
-function toggleChat() {
-    chatOpen = !chatOpen;
-    chatToggleBtn.classList.toggle('open', chatOpen);
-    chatWindow.classList.toggle('open', chatOpen);
-    if (chatOpen && !chatStarted) {
-        chatStarted = true;
-        setTimeout(() => botMsg(BOT.greeting.msg, BOT.greeting.quick), 350);
-    }
+// ── Voice Output ──────────────────────────────────────────────────────────
+// Warm up voices as soon as the page loads (browsers load them async)
+let _voices = [];
+function loadVoices() { _voices = window.speechSynthesis.getVoices(); }
+if ('speechSynthesis' in window) {
+    loadVoices();
+    window.speechSynthesis.addEventListener('voiceschanged', loadVoices);
 }
 
-function botMsg(text, quick = []) {
+function speak(text) {
+    if (!('speechSynthesis' in window)) return;
+    // Strip emoji and non-ASCII symbols so TTS doesn't read their names
+    const clean = text.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ').trim();
+    if (!clean) return;
+    window.speechSynthesis.cancel();
+    // Small delay after cancel to avoid browser race condition
+    setTimeout(() => {
+        const u = new SpeechSynthesisUtterance(clean);
+        // Prefer en-IN, fall back to any English voice, then browser default
+        const preferred = _voices.find(v => v.lang === 'en-IN')
+                       || _voices.find(v => v.lang === 'en-GB')
+                       || _voices.find(v => v.lang.startsWith('en'));
+        if (preferred) u.voice = preferred;
+        u.lang = 'en-IN'; u.rate = 0.9; u.pitch = 1;
+        window.speechSynthesis.speak(u);
+    }, 120);
+}
+
+// ── Typing Indicator ──────────────────────────────────────────────────────
+function showTyping() {
+    if (document.getElementById('chat-typing')) return;
     const el = document.createElement('div');
-    el.className = 'chat-msg bot';
-    el.textContent = text;
+    el.className = 'chat-typing'; el.id = 'chat-typing';
+    el.innerHTML = '<span></span><span></span><span></span>';
     chatMessages.appendChild(el);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+function hideTyping() {
+    const el = document.getElementById('chat-typing');
+    if (el) el.remove();
+}
 
-    chatQuickBtns.innerHTML = '';
-    quick.forEach(label => {
-        const btn = document.createElement('button');
-        btn.className = 'chat-quick-btn';
-        btn.textContent = label;
-        btn.onclick = () => handleQuick(label);
-        chatQuickBtns.appendChild(btn);
-    });
+// ── Message Helpers ───────────────────────────────────────────────────────
+function botMsg(text, quick = []) {
+    showTyping();
+    setTimeout(() => {
+        hideTyping();
+        const el = document.createElement('div');
+        el.className = 'chat-msg bot';
+        el.textContent = text;
+        chatMessages.appendChild(el);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        chatQuickBtns.innerHTML = '';
+        quick.forEach(label => {
+            const btn = document.createElement('button');
+            btn.className = 'chat-quick-btn';
+            btn.textContent = label;
+            btn.onclick = () => handleQuick(label);
+            chatQuickBtns.appendChild(btn);
+        });
+        speak(text);
+    }, 420);
 }
 
 function userMsg(text) {
@@ -1495,47 +1589,429 @@ function userMsg(text) {
     chatQuickBtns.innerHTML = '';
 }
 
-function handleQuick(label) {
-    userMsg(label);
-    const l = label.toLowerCase();
-    if (l.includes('youtube') || l.includes('open youtube')) {
-        window.open('https://www.youtube.com/@refreshingrecipes5642', '_blank');
-        setTimeout(() => botMsg("Opening Lebha Studios YouTube channel in a new tab! 🎬\n\nAnything else I can help you with?", ['Our Services', 'Contact Us']), 350);
-    } else if (l.includes('contact form')) {
-        chatWindow.classList.remove('open'); chatOpen = false; chatToggleBtn.classList.remove('open');
-        document.getElementById('contact').scrollIntoView({ behavior: 'smooth' });
-        setTimeout(() => { chatOpen = true; chatToggleBtn.classList.add('open'); chatWindow.classList.add('open');
-            botMsg("I've scrolled you to the Contact form! Fill it in and we'll get back to you within 24 hours 😊", ['Our Services', 'About LeBha']); }, 800);
-    } else {
-        setTimeout(() => processMsg(label), 350);
+// ── Toggle & Restart ──────────────────────────────────────────────────────
+function toggleChat() {
+    chatOpen = !chatOpen;
+    chatToggleBtn.classList.toggle('open', chatOpen);
+    chatWindow.classList.toggle('open', chatOpen);
+    if (!chatOpen && window.speechSynthesis) window.speechSynthesis.cancel();
+    if (chatOpen && !chatStarted) { chatStarted = true; setTimeout(showWelcome, 350); }
+}
+
+function restartChat() {
+    chatMessages.innerHTML = '';
+    chatQuickBtns.innerHTML = '';
+    chatInput.value = '';
+    Object.assign(S, { state: 'welcome', intent: null, data: {} });
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    showWelcome();
+}
+
+// ── Welcome ───────────────────────────────────────────────────────────────
+function showWelcome() {
+    S.state = 'intent';
+    botMsg(
+        "Hello! Welcome to LeBha Group 👋\n\nI'm LeBha Assistant, here to help you explore our services or connect you with the right team.\n\nWhat brings you here today?",
+        ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']
+    );
+}
+
+// ── Intent Detection — Natural English + Telugu-English mix ───────────────
+function detectIntent(t) {
+    // Interior / Home Design
+    // English: room, house, flat, apartment, villa, kitchen, bedroom, living room, office space, makeover, furnish, build, construct
+    // Telugu-English: inti design, illu, ghar, design kavali, decor kavali, navakarana, space design cheyali
+    if (/interior|home design|house design|room design|room decor|spaces|renovation|remodel|makeover|furnish|furniture|bedroom|living room|kitchen|bathroom|dining|hall|flat design|apartment|villa design|office design|commercial space|d[eé]cor|construct|build my home|new house|new flat|design my|my house|my home|my room|my office|inti design|illu design|ghar design|design kavali|decor kavali|navakarana|space design|space cheyali/.test(t)) return 'interior';
+
+    // Events
+    // English: wedding, birthday, corporate, party, function, occasion, ceremony, anniversary, reception, conference, gathering
+    // Telugu-English: shaadi, pellikuthuru, pandaga, panduga, function cheyali, event organize, sangeet, mehendi, engagement, haldi, pooja
+    if (/\bevent|wedding|birthday|corporate|celebrat|party|function|occasion|ceremony|anniversary|reception|conference|seminar|gathering|get.?together|inaugurat|retirement|felicitat|farewell|mandap|sangeet|mehendi|engagement|haldi|pooja|puja|festival|organize|plan an event|host an event|shaadi|pellikuthuru|pellipandiri|pandaga|panduga|event kavali|event cheyali|function kavali|party organize|wedding plan|birthday plan/.test(t)) return 'event';
+
+    // Catering
+    // English: catering, food, meal, menu, buffet, cook, chef, snacks, biryani, tiffin, thali, vegetarian, non-veg
+    // Telugu-English: vanta kavali, annalu, bhojanam, food kavali, catering kavali, biryani order, sweets kavali
+    if (/cater|food serv|meal|menu|buffet|lunch|dinner|breakfast|snack|biryani|pulao|curry|roti|dal|veg food|non.?veg|vegetarian|nonvegetarian|sweets|dessert|tiffin|thali|\bchef\b|cook for|food for|food arrangement|catering for|serve food|vanta kavali|vantalu|annalu|bhojanam|food kavali|catering kavali|biryani kavali|sweets kavali|food order/.test(t)) return 'catering';
+
+    // IT Freelancing
+    // English: website, app, developer, software, digital marketing, SEO, graphic design, video editing, logo, data, testing, programmer
+    // Telugu-English: website kavali, website cheyali, app kavali, developer kavali, project kavali, design kavali (digital)
+    if (/freelanc|developer|tech support|software|website|web site|mobile app|\bapp\b|application|programmer|coder|graphic design|logo design|digital market|seo|social media market|content creat|video edit|\bdata\b|testing|\bqa\b|consultant|hire a|project work|e.?commerce|online store|portfolio site|landing page|\bui\b|\bux\b|it support|it service|cloud|database|website kavali|website cheyali|app kavali|developer kavali|project kavali|design kavali|tech kavali/.test(t)) return 'freelance';
+
+    // Organic Fruits
+    // English: organic, fruit, mango, guava, banana, chiku, farm, fresh, natural, healthy, order fruits, produce
+    // Telugu-English: pandlu kavali, mango kavali, fruits order cheyali, fresh fruits kavali, organic kavali
+    if (/organic|fruit|mango|guava|banana|chiku|sapota|papaya|watermelon|pomegranate|\bapple\b|\borange\b|farm fresh|fresh produce|chemical.?free|natural food|healthy food|order fruit|fresh fruit|seasonal fruit|pandlu|pandlu kavali|mango kavali|fruits kavali|fruits order|organic kavali/.test(t)) return 'organic';
+
+    // Media / Content / YouTube
+    // English: recipe, video, youtube, cooking, watch, subscribe, channel, food video, tutorial, how to cook
+    // Telugu-English: vantalu chupinchu, recipes cheppu, videos kavali, cooking channel, youtube channel chupinchu
+    if (/recipe|youtube|cooking show|food video|cooking video|watch.*cook|how to cook|cooking tutorial|cooking channel|cooking content|cooking tips|lifestyle video|subscribe|vantalu|vantakalu|recipes cheppu|videos chupinchu|cooking chupinchu|youtube channel/.test(t)) return 'media';
+
+    // Just Exploring
+    if (/explor|browse|look around|not sure|what do you offer|what services|tell me about|show me what|what can you|help me decide|guide me|cheppu|cheppandi|em cheyagalaru|em chestaru|ememi undi|services emi/.test(t)) return 'exploring';
+
+    // Pricing
+    if (/price|cost|rate|how much|budget|charges|fee|estimate|quote|afford|expensive|cheap|entha|ela untundi|charge chestaru|rent/.test(t)) return 'pricing';
+
+    // Location
+    if (/location|where are you|which city|your area|deliver|available in|near me|address|hyderabad|bangalore|chennai|mumbai|delhi|pincode|serviceable/.test(t)) return 'location';
+
+    return null;
+}
+
+// ── Universal Smart Responses ─────────────────────────────────────────────
+function handleUniversal(t) {
+    if (/price|cost|rate|how much|budget|charges|fee|estimate|quote|entha|ela untundi/.test(t)) {
+        botMsg("Pricing depends on your specific requirements 😊\n\nShare a few details and our team will give you a quick estimate!", ['Tell Us Your Requirements', 'Explore Services']);
+        return true;
+    }
+    if (/location|where are you|which city|area|deliver|available in|near me|hyderabad/.test(t)) {
+        botMsg("Tell me your location and I'll confirm availability for you 👍", []);
+        S.state = 'location_asked'; return true;
+    }
+    if (/^(hi|hello|hey|hola|howdy|namaste|namaskar|good morning|good afternoon|good evening|vanakkam|meeru ela unnaru|ela unnaru)/.test(t)) {
+        botMsg("Hello there! 👋 How can I assist you today?", ['Our Services', '👀 Just Exploring']); return true;
+    }
+    if (/thank|thanks|dhanyavadalu|chala manchidi|super|excellent|great work/.test(t)) {
+        botMsg("You're most welcome! 😊 Is there anything else I can help with?", ['Our Services', 'Start Over']); return true;
+    }
+    if (/bye|goodbye|see you|later|vellu|pothunna|ok bye|cya/.test(t)) {
+        botMsg("Goodbye! 👋 Have a wonderful day. Come back anytime!", []); return true;
+    }
+    return false;
+}
+
+// ── Service Flows ─────────────────────────────────────────────────────────
+function flowInterior() {
+    S.intent = 'interior'; S.state = 'interior_branch';
+    botMsg("Great choice! 🏠 Lebha Spaces creates stunning, functional spaces.\n\nIs this for a new home or a renovation?", ['New Home', 'Renovation']);
+}
+function flowInteriorSpace() {
+    S.state = 'interior_space';
+    botMsg("What type of space is it?", ['2BHK / 3BHK', 'Villa', 'Office / Commercial']);
+}
+function flowInteriorTimeline() {
+    S.state = 'interior_timeline';
+    botMsg("Do you have a timeline in mind? 😊", ['Within 1 Month', '1–3 Months', '3–6 Months', 'Flexible']);
+}
+function flowInteriorDesire() {
+    S.state = 'interior_desire';
+    botMsg("What would you like from us?", ['Design Ideas', 'Price Estimate', 'Free Consultation']);
+}
+
+function flowEvent() {
+    S.intent = 'event'; S.state = 'event_type';
+    botMsg("Wonderful! 🎉 Lebha Events crafts unforgettable experiences.\n\nWhat kind of event are you planning?", ['Wedding', 'Birthday', 'Corporate', 'Other']);
+}
+function flowEventDate() {
+    S.state = 'event_date';
+    botMsg("When is the event? (approximate date or month is fine 😊)", []);
+}
+function flowEventCount() {
+    S.state = 'event_count';
+    botMsg("Approximately how many guests are you expecting?", ['Under 50', '50–150', '150–300', '300+']);
+}
+function flowEventScope() {
+    S.state = 'event_scope';
+    botMsg("Do you need full event planning or specific services?", ['Full Planning', 'Decor Only', 'Catering Only', 'Decor + Catering', 'Other Services']);
+}
+
+function flowCatering() {
+    S.intent = 'catering'; S.state = 'catering_details';
+    botMsg("Great! 👍 Lebha Foods creates exceptional culinary experiences.\n\nWhat's the occasion and approximately how many people?", []);
+}
+function flowCateringFood() {
+    S.state = 'catering_food';
+    botMsg("What type of food are you looking for?", ['Veg', 'Non-Veg', 'Mixed']);
+}
+function flowCateringPrefs() {
+    S.state = 'catering_prefs';
+    botMsg("Any specific dishes or cuisine preferences? (Type freely, or say 'No preference' 😊)", []);
+}
+
+function flowFreelance() {
+    S.intent = 'freelance'; S.state = 'freelance_type';
+    botMsg("Sure! 💻 Lebha Creatives connects you with top IT professionals.\n\nWhat kind of work do you need?", ['Design', 'Content Writing', 'Digital Marketing', 'Video Editing', 'Web / App Development', 'Other']);
+}
+function flowFreelanceDesc() {
+    S.state = 'freelance_desc';
+    botMsg("Can you briefly describe your requirement? A sentence or two is perfect 😊", []);
+}
+function flowFreelanceTimeline() {
+    S.state = 'freelance_timeline';
+    botMsg("What's your timeline for this project?", ['ASAP', 'Within 2 Weeks', '1 Month', 'Flexible']);
+}
+
+function flowOrganic() {
+    S.intent = 'organic'; S.state = 'organic_browse';
+    botMsg("We offer fresh organic produce 🌱\n\nHere's what we currently have:\n\n🥭 Juicy Mangoes\n🥭 Banginapalli Mangoes\n🥭 Alphonso Mangoes\n🍈 Guava\n🍌 Banana\n🟤 Chiku\n\nAll 100% organic, farm-fresh & chemical-free!", ['Place an Order', 'Know Prices', 'Back to Menu']);
+}
+
+function flowMedia() {
+    S.intent = 'media'; S.state = 'media_explore';
+    botMsg("Yes! 🎥 We create delicious cooking & lifestyle content!\n\nWhat would you like to explore?", ['Recipes', 'Latest Videos', 'Tips & Tricks']);
+}
+
+function flowExploring() {
+    S.intent = 'exploring'; S.state = 'intent';
+    botMsg("No problem 😊 Here's what LeBha Group offers:\n\n🏠 Interiors — Space design & renovation\n🎉 Events — Weddings, birthdays, corporate\n🍽️ Catering — Custom menus for all occasions\n💻 IT Freelancing — Tech professionals on demand\n🌱 Organic Fruits — Farm-fresh, chemical-free\n🎥 Media Content — Cooking recipes & videos\n\nWhat would you like to explore first?",
+        ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos']);
+}
+
+// ── Lead Capture ──────────────────────────────────────────────────────────
+function startLeadCapture() {
+    S.state = 'lead_name';
+    const msgs = {
+        interior:  "Let's connect you with our design team! 👍\n\nPlease share your name:",
+        event:     "We'd love to plan this with you 😊\n\nPlease share your name:",
+        catering:  "I'll arrange a customized menu for you 😊\n\nPlease share your name:",
+        freelance: "We'll match you with the right expert 👍\n\nPlease share your name:",
+        organic:   "Please share your name to proceed 😊",
+        media:     "I'll get you the details 😊\n\nPlease share your name:"
+    };
+    botMsg(msgs[S.intent] || "Let's take this forward 👍\n\nPlease share your name:", []);
+}
+
+function handleLeadName(name) {
+    S.data.name = name.trim();
+    S.state = 'lead_phone';
+    botMsg("Nice to meet you, " + S.data.name + "! 😊\n\nWhat's your phone number?", []);
+}
+
+function handleLeadPhone(phone) {
+    if (phone.replace(/\D/g, '').length < 10) {
+        botMsg("Please enter a valid 10-digit phone number 😊", []);
+        return;
+    }
+    S.data.phone = phone;
+    S.state = 'lead_done';
+    sendLead();
+}
+
+function buildSummary() {
+    const d = S.data, lines = [];
+    if (d.branch)        lines.push('Type: ' + d.branch);
+    if (d.spaceType)     lines.push('Space: ' + d.spaceType);
+    if (d.desire)        lines.push('Requirement: ' + d.desire);
+    if (d.eventType)     lines.push('Event: ' + d.eventType);
+    if (d.eventDate)     lines.push('Date: ' + d.eventDate);
+    if (d.guestCount)    lines.push('Guests: ' + d.guestCount);
+    if (d.scope)         lines.push('Scope: ' + d.scope);
+    if (d.occasion)      lines.push('Occasion: ' + d.occasion);
+    if (d.foodType)      lines.push('Food type: ' + d.foodType);
+    if (d.prefs)         lines.push('Preferences: ' + d.prefs);
+    if (d.freelanceType) lines.push('Work type: ' + d.freelanceType);
+    if (d.description)   lines.push('Description: ' + d.description);
+    if (d.timeline)      lines.push('Timeline: ' + d.timeline);
+    if (d.location)      lines.push('Location: ' + d.location);
+    return lines.join('\n') || 'General enquiry';
+}
+
+async function sendLead() {
+    const labels = {
+        interior: 'Lebha Spaces — Interior Design', event: 'Lebha Events — Event Management',
+        catering: 'Lebha Foods — Catering',          freelance: 'Lebha Creatives — IT Freelancing',
+        organic:  'Lebha Farms — Organic Fruits',    media: 'Lebha Studios — Media Content'
+    };
+    botMsg("Thank you, " + S.data.name + "! 🙏\n\nOur team will contact you at " + S.data.phone + " shortly.\n\nMeanwhile, feel free to explore more options 😊",
+        ['Explore More Services', 'Start Over']);
+    if (typeof emailjs !== 'undefined' && EJS.key !== 'YOUR_PUBLIC_KEY') {
+        try {
+            await emailjs.send(EJS.svc, EJS.tpl, {
+                from_name: S.data.name,
+                phone:     S.data.phone,
+                service:   labels[S.intent] || 'General Enquiry',
+                message:   buildSummary()
+            }, { publicKey: EJS.key });
+        } catch(e) { console.warn('EmailJS error:', e); }
     }
 }
 
-function processMsg(text) {
-    const t = text.toLowerCase();
-    if (t.includes('all service') || t === 'our services' || t === 'services') return botMsg(BOT.services.msg, BOT.services.quick);
-    if (t.includes('creatives') || t.includes('it freelanc') || t.includes('hire') || t.includes('professional')) return botMsg(BOT.creatives.msg, BOT.creatives.quick);
-    if (t.includes('spaces')    || t.includes('interior'))           return botMsg(BOT.spaces.msg,    BOT.spaces.quick);
-    if (t.includes('events')    || t.includes('event'))              return botMsg(BOT.events.msg,    BOT.events.quick);
-    if (t.includes('foods')     || t.includes('cater'))              return botMsg(BOT.foods.msg,     BOT.foods.quick);
-    if (t.includes('studios')   || t.includes('recipe') || t.includes('youtube') || t.includes('video')) return botMsg(BOT.studios.msg, BOT.studios.quick);
-    if (t.includes('farms')     || t.includes('organic') || t.includes('fruit'))  return botMsg(BOT.farms.msg,    BOT.farms.quick);
-    if (t.includes('enquir')    || t.includes('inquiry') || t.includes('book'))   return botMsg(BOT.enquiry.msg,  BOT.enquiry.quick);
-    if (t.includes('about')     || t.includes('lebha'))              return botMsg(BOT.about.msg,    BOT.about.quick);
-    if (t.includes('contact'))                                        return botMsg(BOT.contact.msg,  BOT.contact.quick);
-    if (t.includes('hello')     || t.includes('hi') || t.includes('hey')) return botMsg(BOT.greeting.msg, BOT.greeting.quick);
-    botMsg(BOT.fallback.msg, BOT.fallback.quick);
+// ── Main Input Handler ────────────────────────────────────────────────────
+function handleInput(text) {
+    const t = text.toLowerCase().trim();
+    if (handleUniversal(t)) return;
+
+    switch (S.state) {
+        case 'intent':
+        case 'welcome': {
+            const intent = detectIntent(t);
+            if (intent === 'interior')  { flowInterior();  return; }
+            if (intent === 'event')     { flowEvent();     return; }
+            if (intent === 'catering')  { flowCatering();  return; }
+            if (intent === 'freelance') { flowFreelance(); return; }
+            if (intent === 'organic')   { flowOrganic();   return; }
+            if (intent === 'media')     { flowMedia();     return; }
+            if (intent === 'exploring') { flowExploring(); return; }
+            if (intent === 'pricing')   { handleUniversal('price'); return; }
+            botMsg("Got you 🙂 Are you looking for a service, pricing, or general info?",
+                ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']);
+            break;
+        }
+
+        case 'interior_branch':   S.data.branch       = text; flowInteriorSpace();    break;
+        case 'interior_space':    S.data.spaceType     = text; flowInteriorTimeline(); break;
+        case 'interior_timeline': S.data.timeline      = text; flowInteriorDesire();  break;
+        case 'interior_desire':   S.data.desire        = text; startLeadCapture();    break;
+
+        case 'event_type':  S.data.eventType  = text; flowEventDate();  break;
+        case 'event_date':  S.data.eventDate  = text; flowEventCount(); break;
+        case 'event_count': S.data.guestCount = text; flowEventScope(); break;
+        case 'event_scope': S.data.scope      = text; startLeadCapture(); break;
+
+        case 'catering_details': S.data.occasion  = text; flowCateringFood();  break;
+        case 'catering_food':    S.data.foodType  = text; flowCateringPrefs(); break;
+        case 'catering_prefs':   S.data.prefs     = text; startLeadCapture();  break;
+
+        case 'freelance_type':     S.data.freelanceType = text; flowFreelanceDesc();     break;
+        case 'freelance_desc':     S.data.description   = text; flowFreelanceTimeline(); break;
+        case 'freelance_timeline': S.data.timeline      = text; startLeadCapture();      break;
+
+        case 'organic_browse': {
+            if (/order|buy|purchase|place/.test(t))   { startLeadCapture(); }
+            else if (/price|cost|know|rate/.test(t)) {
+                S.state = 'organic_price';
+                botMsg("Our prices vary by season and quantity 🌱\n\nShare your details and our team will send you a personalised quote!", ['Share My Details', 'Back to Menu']);
+            } else if (/menu|back|main/.test(t)) { flowExploring(); }
+            else { startLeadCapture(); }
+            break;
+        }
+        case 'organic_price': {
+            if (/share|detail|yes|sure/.test(t)) startLeadCapture();
+            else flowExploring();
+            break;
+        }
+
+        case 'media_explore': {
+            S.state = 'media_cta';
+            if (/recipe|food|cook/.test(t))
+                botMsg("🍳 We have a wide variety of recipes — from quick weekday meals to special occasion dishes!\n\nVisit our YouTube channel:", ['Open YouTube Channel', 'Back to Menu']);
+            else if (/video|latest/.test(t))
+                botMsg("🎬 Check out our latest cooking videos! We post new content regularly. Subscribe to stay updated:", ['Open YouTube Channel', 'Back to Menu']);
+            else
+                botMsg("💡 We share cooking tips, ingredient hacks, and kitchen tricks in our videos!\n\nHead over to our channel:", ['Open YouTube Channel', 'Back to Menu']);
+            break;
+        }
+        case 'media_cta': {
+            if (/youtube|open|channel/.test(t)) {
+                window.open('https://www.youtube.com/@refreshingrecipes5642', '_blank');
+                setTimeout(() => botMsg("Opened Lebha Studios on YouTube! 🎬\n\nWant updates or collaboration opportunities?", ['Yes, Share Details', 'No Thanks']), 180);
+            } else if (/yes|share|detail/.test(t)) { startLeadCapture(); }
+            else { flowExploring(); }
+            break;
+        }
+
+        case 'location_asked': {
+            S.data.location = text;
+            botMsg("Got it! 👍 Shall I connect you with our team for " + text + "?", ['Yes Please', 'Not Now']);
+            S.state = 'location_confirm'; break;
+        }
+        case 'location_confirm': {
+            if (/yes|please|sure|ok/.test(t)) startLeadCapture();
+            else { botMsg("No problem 😊 Feel free to explore more!", ['Our Services', 'Start Over']); S.state = 'intent'; }
+            break;
+        }
+
+        case 'lead_name':  handleLeadName(text);  break;
+        case 'lead_phone': handleLeadPhone(text); break;
+
+        case 'lead_done': {
+            const i = detectIntent(t);
+            if (i && !['pricing','location'].includes(i)) { S.state = 'intent'; handleInput(text); }
+            else if (/start|over|restart|menu|more|explore/.test(t)) restartChat();
+            else botMsg("Is there anything else I can help with? 😊", ['Explore More Services', 'Start Over']);
+            break;
+        }
+
+        default: {
+            const i = detectIntent(t);
+            if (i && !['pricing','location'].includes(i)) { S.state = 'intent'; handleInput(text); return; }
+            botMsg("Got you 🙂 Are you looking for a service, pricing, or general info?",
+                ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']);
+            S.state = 'intent';
+        }
+    }
 }
 
+// ── Quick Button Handler ──────────────────────────────────────────────────
+function handleQuick(label) {
+    userMsg(label);
+    const l = label.toLowerCase();
+    if (/open youtube channel/.test(l)) {
+        window.open('https://www.youtube.com/@refreshingrecipes5642', '_blank');
+        setTimeout(() => botMsg("Opened Lebha Studios on YouTube! 🎬\n\nAnything else I can help with?", ['Our Services', 'Start Over']), 180);
+        return;
+    }
+    if (/start over|restart/.test(l))                  { setTimeout(restartChat, 150); return; }
+    if (/back to menu|explore more services/.test(l))   { setTimeout(flowExploring, 180); return; }
+    if (/yes, share details|share my details/.test(l))  { setTimeout(startLeadCapture, 180); return; }
+    if (/tell us your requirements/.test(l))            { if (S.intent) setTimeout(startLeadCapture, 180); else setTimeout(flowExploring, 180); return; }
+    if (/explore services/.test(l))                     { setTimeout(flowExploring, 180); return; }
+    if (/not now|no thanks/.test(l)) {
+        setTimeout(() => { botMsg("No problem 😊 Feel free to ask anything!", ['Our Services', 'Start Over']); S.state = 'intent'; }, 180);
+        return;
+    }
+    setTimeout(() => handleInput(label), 180);
+}
+
+// ── Send (typed input) ────────────────────────────────────────────────────
 function sendChat() {
     const text = chatInput.value.trim();
     if (!text) return;
     userMsg(text);
     chatInput.value = '';
-    setTimeout(() => processMsg(text), 350);
+    setTimeout(() => handleInput(text), 180);
 }
 
 chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); });
+
+// ── Voice Input ───────────────────────────────────────────────────────────
+function startListening() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { botMsg("Voice input isn't supported in this browser 😊 Please type your message.", []); return; }
+    if (!recognition) {
+        recognition = new SR();
+        recognition.lang = 'en-IN';
+        recognition.continuous = false;
+        recognition.interimResults = false;
+    }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    const mic = document.getElementById('chat-mic-btn');
+    mic.classList.add('listening');
+
+    recognition.onresult = e => {
+        const t = e.results[0][0].transcript;
+        mic.classList.remove('listening');
+        voiceRetries = 0;
+        userMsg(t);
+        // Minimal delay — just enough for userMsg to render before processing
+        setTimeout(() => handleInput(t), 100);
+    };
+    recognition.onerror = e => {
+        mic.classList.remove('listening');
+        // file:// protocol blocks SpeechRecognition in Chrome — show a clear message
+        if (e.error === 'service-not-allowed' || e.error === 'not-allowed') {
+            voiceRetries = 0;
+            botMsg("Voice input needs the site to run on a local server or live URL 😊\n\nOpen this file using VS Code Live Server or any local server — then voice will work perfectly!\n\nFor now, please type your message below 👇", []);
+            return;
+        }
+        if (e.error === 'no-speech') {
+            botMsg("I didn't hear anything 😊 Please tap the mic and speak clearly.", []);
+            return;
+        }
+        if (voiceRetries < 1) {
+            voiceRetries++;
+            botMsg("Sorry, I didn't catch that 😊 Could you please speak again?", []);
+            speak("Sorry, I didn't catch that. Could you please speak again?");
+        } else {
+            voiceRetries = 0;
+            botMsg("No worries! Please type your message below 😊", []);
+        }
+    };
+    recognition.onend = () => mic.classList.remove('listening');
+    try { recognition.start(); } catch(e) { mic.classList.remove('listening'); }
+}
 </script>
 
 </body>
