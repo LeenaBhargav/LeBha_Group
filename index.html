@@ -1535,8 +1535,8 @@ if ('speechSynthesis' in window) {
 
 function speak(text) {
     if (!('speechSynthesis' in window)) return;
-    // Phonetic substitution so TTS pronounces "LeBha" as "liːbɑː" (Lee-baa)
-    const phonetic = text.replace(/lebha/gi, 'Lee baa');
+    // Phonetic substitution so TTS pronounces "LeBha" as "liːbɑː" (Lee-bah)
+    const phonetic = text.replace(/lebha/gi, 'Lee bah');
     const clean = phonetic.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ').trim();
     if (!clean) return;
 
