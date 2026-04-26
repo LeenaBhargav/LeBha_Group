@@ -818,7 +818,7 @@
         /* ── Chatbot Enhancements ── */
         .chat-restart-bar {
             padding: 4px 14px;
-            display: flex; justify-content: flex-end;
+            display: flex; justify-content: space-between; align-items: center;
             border-bottom: 1px solid var(--gray-200);
             background: var(--off-white);
         }
@@ -831,6 +831,15 @@
             display: flex; align-items: center; gap: 4px;
         }
         .chat-restart-btn:hover { color: var(--navy); background: var(--gray-200); }
+        .chat-whatsapp-btn {
+            font-size: 0.7rem; font-weight: 600;
+            color: #25D366; text-decoration: none;
+            padding: 4px 10px; border-radius: 12px;
+            background: rgba(37,211,102,0.1);
+            transition: background 0.2s;
+            display: flex; align-items: center; gap: 3px;
+        }
+        .chat-whatsapp-btn:hover { background: rgba(37,211,102,0.22); }
 
         .chat-mic-btn {
             width: 34px; height: 34px; flex-shrink: 0;
@@ -1377,6 +1386,7 @@
         </div>
 
         <div class="chat-restart-bar">
+            <a class="chat-whatsapp-btn" href="https://wa.me/1234567890" target="_blank" title="Chat on WhatsApp">💬 WhatsApp</a>
             <button class="chat-restart-btn" onclick="restartChat()" title="Start over">↺ Start Over</button>
         </div>
 
@@ -1614,12 +1624,22 @@ function restartChat() {
     showWelcome();
 }
 
+// ── Business Hours ────────────────────────────────────────────────────────
+function isBusinessHours() {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sunday
+    const hour = now.getHours();
+    return day !== 0 && hour >= 9 && hour < 19;
+}
+
 // ── Welcome ───────────────────────────────────────────────────────────────
 function showWelcome() {
-    S.state = 'intent';
+    const hour = new Date().getHours();
+    const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    S.state = 'returning_check';
     botMsg(
-        "Hello! Welcome to LeBha Group 👋\n\nI'm LeBha Assistant, here to help you explore our services or connect you with the right team.\n\nWhat brings you here today?",
-        ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']
+        greet + "! Welcome to LeBha Group 😊\n\nI'm LeBha Assistant — here to help you explore our services.\n\nHave you used our services before?",
+        ["Yes, I'm a returning customer", 'No, first time here']
     );
 }
 
@@ -1716,20 +1736,67 @@ function extractCateringData(t) {
 
 // ── Universal Smart Responses ─────────────────────────────────────────────
 function handleUniversal(t) {
-    if (/price|cost|rate|how much|budget|charges|fee|estimate|quote|entha|ela untundi/.test(t)) {
-        botMsg("Pricing depends on your specific requirements 😊\n\nShare a few details and our team will give you a quick estimate!", ['Tell Us Your Requirements', 'Explore Services']);
+    // Founder / Who is
+    if (/who is (leena|bhargav|founder|owner)|leena.*bhargav|bhargav.*leena|who (are|started|created|built) lebha/.test(t)) {
+        botMsg("Leena and Bhargav are the founders of LeBha Group 😊\n\nThe name 'LeBha' is inspired by Leena Bhargav — representing their combined vision of uniting diverse businesses under one identity.", ['About LeBha Group', 'Our Services']);
         return true;
     }
-    if (/location|where are you|which city|area|deliver|available in|near me|hyderabad/.test(t)) {
-        botMsg("Tell me your location and I'll confirm availability for you 👍", []);
-        S.state = 'location_asked'; return true;
+    // About LeBha
+    if (/\babout\b|what is lebha|who are you|tell me about (you|lebha)|company info|lebha group/.test(t)) {
+        botMsg("LeBha Group represents the coming together of ideas, passions, and possibilities. 😊\n\nInspired by the essence of Leena Bhargav, LeBha symbolizes a vision where diverse talents and businesses unite under one identity.\n\nWe offer Interior Design, Events, Catering, IT Freelancing, Organic Fruits & Media Content — all under one roof!", ['Our Services', 'Talk to Our Team']);
+        return true;
     }
+    // Complaint / Feedback
+    if (/complaint|complain|issue|problem|bad experience|not satisfied|unhappy|disappoint|feedback|suggestion/.test(t)) {
+        S.state = 'complaint';
+        botMsg("We're truly sorry to hear that 🙏\n\nYour experience matters deeply to us. Please share what happened and our team will personally look into it.\n\nWhat would you like to share?", []);
+        return true;
+    }
+    // WhatsApp
+    if (/whatsapp|watsapp|whats app/.test(t)) {
+        window.open('https://wa.me/1234567890', '_blank');
+        setTimeout(() => botMsg("Opened WhatsApp! 😊 Our team will respond shortly.\n\nAnything else I can help with?", ['Our Services', 'Start Over']), 180);
+        return true;
+    }
+    // Talk to a person
+    if (/talk to (a person|human|someone|agent|team|real person)|speak to (someone|team|person|human)|connect me|human agent|real person/.test(t)) {
+        S.state = 'lead_name';
+        S.intent = S.intent || 'general';
+        botMsg("Sure! 😊 I'll connect you with our team right away.\n\nPlease share your name:", []);
+        return true;
+    }
+    // After-hours contact
+    if (/contact|call|reach|speak|open|available|working hours|office hours|timing/.test(t)) {
+        if (!isBusinessHours()) {
+            const day = new Date().getDay();
+            const msg = day === 0
+                ? "We're closed on Sundays 😊 We'll be back Monday 9am–7pm.\n\nWould you like to leave your details and we'll call you first thing Monday?"
+                : "We're currently closed 😊 Our hours are Mon–Sat, 9am–7pm.\n\nWould you like to leave your details and we'll call you when we open?";
+            botMsg(msg, ['Yes, Leave My Details', 'Explore Services']);
+            return true;
+        }
+    }
+    // Location
+    if (/location|where are you|which city|area|deliver|available in|near me|bangalore|serviceable/.test(t)) {
+        botMsg("We're based in Bangalore and serve all areas across the city! 📍\n\n🚚 Delivery available throughout Bangalore\n🕘 Mon–Sat, 9am–7pm\n\nWould you like to connect with our team?", ['Yes, Connect Me', 'Explore Services']);
+        S.state = 'location_confirm'; return true;
+    }
+    // Pricing
+    if (/price|cost|rate|how much|budget|charges|fee|estimate|quote|entha|ela untundi/.test(t)) {
+        botMsg("Pricing depends on your specific requirements 😊\n\n🎉 Special offer: 10% off your first order with LeBha Group!\n✨ Free consultation for Interior Design\n\nShare a few details and our team will give you a quick estimate!", ['Tell Us Your Requirements', 'Explore Services']);
+        return true;
+    }
+    // Greetings
     if (/^(hi|hello|hey|hola|howdy|namaste|namaskar|good morning|good afternoon|good evening|vanakkam|meeru ela unnaru|ela unnaru)/.test(t)) {
-        botMsg("Hello there! 👋 How can I assist you today?", ['Our Services', '👀 Just Exploring']); return true;
+        const hour = new Date().getHours();
+        const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+        botMsg(greet + "! 👋 How can I assist you today?", ['Our Services', '👀 Just Exploring']); return true;
     }
+    // Thanks
     if (/thank|thanks|dhanyavadalu|chala manchidi|super|excellent|great work/.test(t)) {
         botMsg("You're most welcome! 😊 Is there anything else I can help with?", ['Our Services', 'Start Over']); return true;
     }
+    // Bye
     if (/bye|goodbye|see you|later|vellu|pothunna|ok bye|cya/.test(t)) {
         botMsg("Goodbye! 👋 Have a wonderful day. Come back anytime!", []); return true;
     }
@@ -1739,11 +1806,11 @@ function handleUniversal(t) {
 // ── Service Flows ─────────────────────────────────────────────────────────
 function flowInterior() {
     S.intent = 'interior'; S.state = 'interior_branch';
-    botMsg("Great choice! 🏠 Lebha Spaces creates stunning, functional spaces.\n\nIs this for a new home or a renovation?", ['New Home', 'Renovation']);
+    botMsg("Great choice! 🏠 Lebha Spaces creates stunning, functional spaces across Bangalore.\n\n✨ Both modern & traditional styles\n🏠 Residential & commercial projects\n🎁 Free consultation for new clients!\n\nIs this for a new home or a renovation?", ['New Home', 'Renovation']);
 }
 function flowInteriorSpace() {
     S.state = 'interior_space';
-    botMsg("What type of space is it?", ['2BHK / 3BHK', 'Villa', 'Office / Commercial']);
+    botMsg("What type of space is it?", ['2BHK / 3BHK', '4BHK / 5BHK', 'Villa', 'Independent House', 'Office / Commercial']);
 }
 function flowInteriorTimeline() {
     S.state = 'interior_timeline';
@@ -1760,7 +1827,7 @@ function flowEvent(prefill) {
     // Skip straight to first unanswered question
     if (!S.data.eventType) {
         S.state = 'event_type';
-        botMsg("Wonderful! 🎉 Lebha Events crafts unforgettable experiences.\n\nWhat kind of event are you planning?", ['Wedding', 'Birthday', 'Corporate', 'Anniversary', 'Other']);
+        botMsg("Wonderful! 🎉 Lebha Events crafts unforgettable experiences across Bangalore!\n\n👥 We handle 100–500 guests\n📦 Full packages or event-only services\n🎊 All types of events welcome!\n\nWhat kind of event are you planning?", ['Wedding', 'Birthday', 'Corporate', 'Anniversary', 'Engagement', 'Other']);
     } else if (!S.data.eventDate) {
         flowEventDate();
     } else if (!S.data.guestCount) {
@@ -1775,11 +1842,11 @@ function flowEventDate() {
 }
 function flowEventCount() {
     S.state = 'event_count';
-    botMsg("Approximately how many guests are you expecting?", ['Under 50', '50–150', '150–300', '300+']);
+    botMsg("Approximately how many guests are you expecting?\n\n(We handle events from 100 to 500 guests 😊)", ['100–150', '150–250', '250–350', '350–500', '500+']);
 }
 function flowEventScope() {
     S.state = 'event_scope';
-    botMsg("Do you need full event planning or specific services?", ['Full Planning', 'Decor Only', 'Catering Only', 'Decor + Catering', 'Other Services']);
+    botMsg("Do you need a full package or specific services?", ['Full Package (Venue + Decor + Catering)', 'Event Management Only', 'Decor Only', 'Catering Only', 'Decor + Catering']);
 }
 
 function flowCatering(prefill) {
@@ -1787,7 +1854,7 @@ function flowCatering(prefill) {
     if (prefill) Object.assign(S.data, prefill);
     if (!S.data.occasion) {
         S.state = 'catering_details';
-        botMsg("Great! 👍 Lebha Foods creates exceptional culinary experiences.\n\nWhat's the occasion and approximately how many people?", []);
+        botMsg("Great! 👍 Lebha Foods creates exceptional culinary experiences.\n\n🍽️ Veg & Non-Veg menus available\n💫 Signature: Welcome Drinks\n💰 Starting from Rs 9,000 (min. 100 guests)\n💵 Cash payment accepted\n\nWhat's the occasion and approximately how many people?", []);
     } else if (!S.data.foodType) {
         flowCateringFood();
     } else {
@@ -1800,12 +1867,12 @@ function flowCateringFood() {
 }
 function flowCateringPrefs() {
     S.state = 'catering_prefs';
-    botMsg("Any specific dishes or cuisine preferences? (Type freely, or say 'No preference' 😊)", []);
+    botMsg("Any specific dishes or cuisine preferences?\n\n✨ Our signature Welcome Drinks are a crowd favourite!\n\n(Type freely, or say 'No preference' 😊)", []);
 }
 
 function flowFreelance() {
     S.intent = 'freelance'; S.state = 'freelance_type';
-    botMsg("Sure! 💻 Lebha Creatives connects you with top IT professionals.\n\nWhat kind of work do you need?", ['Design', 'Content Writing', 'Digital Marketing', 'Video Editing', 'Web / App Development', 'Other']);
+    botMsg("Sure! 💻 Lebha Creatives connects you with top IT professionals.\n\n⏱️ Typical timeline: 1–3 months\n📍 Serving clients across Bangalore\n💰 Pricing on request\n\nWhat kind of work do you need?", ['Web / App Development', 'Graphic Design', 'Digital Marketing', 'Video Editing', 'Content Writing', 'Other']);
 }
 function flowFreelanceDesc() {
     S.state = 'freelance_desc';
@@ -1818,7 +1885,11 @@ function flowFreelanceTimeline() {
 
 function flowOrganic() {
     S.intent = 'organic'; S.state = 'organic_browse';
-    botMsg("We offer fresh organic produce 🌱\n\nHere's what we currently have:\n\n🥭 Juicy Mangoes\n🥭 Banginapalli Mangoes\n🥭 Alphonso Mangoes\n🍈 Guava\n🍌 Banana\n🟤 Chiku\n\nAll 100% organic, farm-fresh & chemical-free!", ['Place an Order', 'Know Prices', 'Back to Menu']);
+    const month = new Date().getMonth() + 1;
+    const mangoNote = (month >= 3 && month <= 7)
+        ? "🥭 Mangoes are IN SEASON right now — fresh stock available!"
+        : "🥭 Mangoes available March–July (currently out of season)";
+    botMsg("We offer fresh organic produce 🌱\n\n" + mangoNote + "\n\n🥭 Juicy Mangoes\n🥭 Banginapalli Mangoes\n🥭 Alphonso Mangoes\n🍈 Guava (year-round)\n🍌 Banana (year-round)\n🟤 Chiku (year-round)\n\n📦 Min. order: 5kg / Rs 1,000\n🚚 Free delivery across Bangalore\n✅ 100% organic, farm-fresh & chemical-free!", ['Place an Order', 'Know Prices', 'Back to Menu']);
 }
 
 function flowMedia() {
@@ -1924,6 +1995,28 @@ function handleInput(text) {
     }
 
     switch (S.state) {
+        case 'returning_check': {
+            if (/yes|returning|before|used|already|been here|came before/.test(t)) {
+                S.data.returning = true;
+                S.state = 'intent';
+                botMsg("Welcome back! 😊 Great to have you again — how can we help you today?",
+                    ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']);
+            } else {
+                S.state = 'intent';
+                botMsg("Welcome! 😊 Here's what LeBha Group offers — what can I help you with today?\n\n🎉 Special offer: 10% off your first order!",
+                    ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']);
+            }
+            break;
+        }
+
+        case 'complaint': {
+            S.data.complaint = text;
+            botMsg("Thank you for sharing this with us 🙏\n\nWe sincerely apologise for your experience. Our team will review this and get back to you personally.\n\nIs there anything else I can help you with?",
+                ['Our Services', 'Start Over']);
+            S.state = 'intent';
+            break;
+        }
+
         case 'intent':
         case 'welcome': {
             const allI = detectAllIntents(t);
@@ -1937,7 +2030,7 @@ function handleInput(text) {
             if (intent === 'media')     { flowMedia();     return; }
             if (intent === 'exploring') { flowExploring(); return; }
             if (intent === 'pricing')   { handleUniversal('price'); return; }
-            botMsg("Got you 🙂 Are you looking for a service, pricing, or general info?",
+            botMsg("I can only help with LeBha services 😊 What are you looking for?",
                 ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']);
             break;
         }
@@ -1981,7 +2074,7 @@ function handleInput(text) {
             if (/order|buy|purchase|place/.test(t))   { startLeadCapture(); }
             else if (/price|cost|know|rate/.test(t)) {
                 S.state = 'organic_price';
-                botMsg("Our prices vary by season and quantity 🌱\n\nShare your details and our team will send you a personalised quote!", ['Share My Details', 'Back to Menu']);
+                botMsg("Our prices start from Rs 1,000 for 5kg 🌱\n\nPrices vary by fruit and season. Share your details and our team will send you a personalised quote!", ['Share My Details', 'Back to Menu']);
             } else if (/menu|back|main/.test(t)) { flowExploring(); }
             else { startLeadCapture(); }
             break;
@@ -2013,7 +2106,7 @@ function handleInput(text) {
 
         case 'location_asked': {
             S.data.location = text;
-            botMsg("Got it! 👍 Shall I connect you with our team for " + text + "?", ['Yes Please', 'Not Now']);
+            botMsg("Got it! 👍 Shall I connect you with our team?", ['Yes Please', 'Not Now']);
             S.state = 'location_confirm'; break;
         }
         case 'location_confirm': {
@@ -2036,8 +2129,8 @@ function handleInput(text) {
         default: {
             const i = detectIntent(t);
             if (i && !['pricing','location'].includes(i)) { S.state = 'intent'; handleInput(text); return; }
-            botMsg("Got you 🙂 Are you looking for a service, pricing, or general info?",
-                ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos', '👀 Just Exploring']);
+            botMsg("I can only help with LeBha services 😊\n\nHere's what I can assist you with:",
+                ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos']);
             S.state = 'intent';
         }
     }
@@ -2053,10 +2146,12 @@ function handleQuick(label) {
         return;
     }
     if (/start over|restart/.test(l))                  { setTimeout(restartChat, 150); return; }
-    if (/back to menu|explore more services/.test(l))   { setTimeout(flowExploring, 180); return; }
-    if (/yes, share details|share my details/.test(l))  { setTimeout(startLeadCapture, 180); return; }
+    if (/back to menu|explore more services|our services/.test(l)) { setTimeout(flowExploring, 180); return; }
+    if (/yes, share details|share my details|yes, leave my details|leave my details/.test(l)) { setTimeout(startLeadCapture, 180); return; }
     if (/tell us your requirements/.test(l))            { if (S.intent) setTimeout(startLeadCapture, 180); else setTimeout(flowExploring, 180); return; }
     if (/explore services/.test(l))                     { setTimeout(flowExploring, 180); return; }
+    if (/about lebha group/.test(l))                    { setTimeout(() => handleInput('about lebha'), 180); return; }
+    if (/talk to our team|connect me|yes, connect me/.test(l)) { setTimeout(() => { S.state = 'lead_name'; S.intent = S.intent || 'general'; botMsg("Please share your name 😊", []); }, 180); return; }
     if (/not now|no thanks/.test(l)) {
         setTimeout(() => { botMsg("No problem 😊 Feel free to ask anything!", ['Our Services', 'Start Over']); S.state = 'intent'; }, 180);
         return;
