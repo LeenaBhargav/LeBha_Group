@@ -1522,6 +1522,7 @@ const chatInput     = document.getElementById('chat-input');
 
 let chatOpen = false, chatStarted = false;
 let recognition = null, voiceRetries = 0;
+let voiceInputActive = false; // true only when last input was from mic
 
 // Session state — remembers context within the conversation
 const S = { state: 'welcome', intent: null, data: {} };
@@ -1535,6 +1536,7 @@ if ('speechSynthesis' in window) {
 
 function speak(text) {
     if (!('speechSynthesis' in window)) return;
+    if (!voiceInputActive) return; // only speak when user used mic
     // Phonetic substitution so TTS pronounces "LeBha" as "liːbɑː" (Lee-bah)
     const phonetic = text.replace(/lebha/gi, 'Lee bah');
     const clean = phonetic.replace(/[^\x20-\x7E\n]/g, '').replace(/\s+/g, ' ').trim();
@@ -2150,6 +2152,7 @@ function handleInput(text) {
 
 // ── Quick Button Handler ──────────────────────────────────────────────────
 function handleQuick(label) {
+    voiceInputActive = false; // button clicked — disable voice output
     userMsg(label);
     const l = label.toLowerCase();
     if (/open youtube channel/.test(l)) {
@@ -2175,6 +2178,7 @@ function handleQuick(label) {
 function sendChat() {
     const text = chatInput.value.trim();
     if (!text) return;
+    voiceInputActive = false; // user typed — disable voice output
     userMsg(text);
     chatInput.value = '';
     setTimeout(() => handleInput(text), 180);
@@ -2203,6 +2207,7 @@ function startListening() {
         const t = e.results[0][0].transcript;
         mic.classList.remove('listening');
         voiceRetries = 0;
+        voiceInputActive = true; // user spoke — enable voice output
         userMsg(t);
         setTimeout(() => handleInput(t), 100);
     };
