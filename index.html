@@ -1987,23 +1987,25 @@ chatInput.addEventListener('keydown', e => { if (e.key === 'Enter') sendChat(); 
 function startListening() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { botMsg("Voice input isn't supported in this browser 😊 Please type your message.", []); return; }
-    if (!recognition) {
-        recognition = new SR();
-        recognition.lang = 'en-IN';
-        recognition.continuous = false;
-        recognition.interimResults = false;
-        recognition.maxAlternatives = 1;
-    }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     const mic = document.getElementById('chat-mic-btn');
     mic.classList.add('listening');
+    let gotResult = false;
+
+    // Re-create recognition each time to avoid stale state in Edge
+    recognition = new SR();
+    // en-US recognises Indian English reliably; en-IN causes timeouts in Edge
+    recognition.lang = 'en-US';
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
     recognition.onresult = e => {
+        gotResult = true;
         const t = e.results[0][0].transcript;
         mic.classList.remove('listening');
         voiceRetries = 0;
         userMsg(t);
-        // Minimal delay — just enough for userMsg to render before processing
         setTimeout(() => handleInput(t), 100);
     };
     recognition.onerror = e => {
@@ -2037,7 +2039,19 @@ function startListening() {
             botMsg("No worries! Please type your message below 😊", []);
         }
     };
-    recognition.onend = () => mic.classList.remove('listening');
+    recognition.onend = () => {
+        mic.classList.remove('listening');
+        // onend fired without a result and without onerror — treat as no-speech
+        if (!gotResult) {
+            if (voiceRetries < 1) {
+                voiceRetries++;
+                botMsg("Sorry, I didn't catch that 😊 Please tap the mic and try speaking again.", []);
+            } else {
+                voiceRetries = 0;
+                botMsg("No worries! Please type your message below 😊", []);
+            }
+        }
+    };
     try { recognition.start(); } catch(e) { mic.classList.remove('listening'); }
 }
 </script>
