@@ -1829,9 +1829,26 @@ async function sendLead() {
 }
 
 // ── Main Input Handler ────────────────────────────────────────────────────
+const MID_FLOW_STATES = [
+    'interior_branch','interior_space','interior_timeline','interior_desire',
+    'event_type','event_date','event_count','event_scope',
+    'catering_details','catering_food','catering_prefs',
+    'freelance_type','freelance_desc','freelance_timeline',
+    'organic_browse','organic_price','media_explore','media_cta'
+];
+
 function handleInput(text) {
     const t = text.toLowerCase().trim();
     if (handleUniversal(t)) return;
+
+    // If user is mid-flow but clearly asks about a DIFFERENT service, re-route
+    if (MID_FLOW_STATES.includes(S.state)) {
+        const newIntent = detectIntent(t);
+        if (newIntent && newIntent !== S.intent && !['pricing','location'].includes(newIntent)) {
+            S.state = 'intent'; S.data = {};
+            handleInput(text); return;
+        }
+    }
 
     switch (S.state) {
         case 'intent':
@@ -1975,6 +1992,7 @@ function startListening() {
         recognition.lang = 'en-IN';
         recognition.continuous = false;
         recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
     }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     const mic = document.getElementById('chat-mic-btn');
@@ -1990,14 +2008,24 @@ function startListening() {
     };
     recognition.onerror = e => {
         mic.classList.remove('listening');
-        // file:// protocol blocks SpeechRecognition in Chrome — show a clear message
-        if (e.error === 'service-not-allowed' || e.error === 'not-allowed') {
+        console.error('[LeBha Voice] Error code:', e.error);
+        if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
             voiceRetries = 0;
-            botMsg("Voice input needs the site to run on a local server or live URL 😊\n\nOpen this file using VS Code Live Server or any local server — then voice will work perfectly!\n\nFor now, please type your message below 👇", []);
+            botMsg("Microphone access was blocked 😊 Please allow microphone permission in your browser settings and try again.", []);
             return;
         }
         if (e.error === 'no-speech') {
             botMsg("I didn't hear anything 😊 Please tap the mic and speak clearly.", []);
+            return;
+        }
+        if (e.error === 'network') {
+            voiceRetries = 0;
+            botMsg("Voice recognition needs an internet connection 😊 Please check your connection and try again.", []);
+            return;
+        }
+        if (e.error === 'audio-capture') {
+            voiceRetries = 0;
+            botMsg("Couldn't access your microphone 😊 Please check that it's connected and not in use by another app.", []);
             return;
         }
         if (voiceRetries < 1) {
