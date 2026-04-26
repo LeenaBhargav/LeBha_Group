@@ -1547,13 +1547,23 @@ function speak(text) {
         const voices = window.speechSynthesis.getVoices();
         const u = new SpeechSynthesisUtterance(clean);
 
-        // Female voice preference: Neerja (Indian English) → other female Microsoft voices → any English female
-        const voice = voices.find(v => /neerja/i.test(v.name))
-                   || voices.find(v => /microsoft.*(aria|jenny|sonia|libby|mia|natasha|emma|clara|amber|ana|michelle|monica|sara|hazel|zira)/i.test(v.name) && v.lang.startsWith('en'))
-                   || voices.find(v => v.lang === 'en-IN')
-                   || voices.find(v => v.lang === 'en-GB' && !/ryan|george|oliver|thomas|james/i.test(v.name))
-                   || voices.find(v => v.lang === 'en-US' && !/david|mark|alex|fred/i.test(v.name))
-                   || voices.find(v => v.lang.startsWith('en'));
+        // Female voice — works across Windows, Android, iOS
+        const voice =
+            // Indian English female: Neerja (Windows) or Veena (iOS)
+            voices.find(v => /neerja|veena/i.test(v.name))
+            // Android Chrome: "Google UK English Female" / "Google US English Female"
+            || voices.find(v => /google.*english.*female|google.*female/i.test(v.name))
+            // Any voice with "female" in the name (Android/iOS generic)
+            || voices.find(v => /female/i.test(v.name) && v.lang.startsWith('en'))
+            // Female Microsoft Natural voices (Windows/Edge)
+            || voices.find(v => /microsoft.*(aria|jenny|sonia|libby|mia|natasha|emma|clara|amber|ana|michelle|monica|sara|hazel|zira)/i.test(v.name) && v.lang.startsWith('en'))
+            // en-IN fallback
+            || voices.find(v => v.lang === 'en-IN')
+            // en-GB avoiding known male names
+            || voices.find(v => v.lang === 'en-GB' && !/ryan|george|oliver|thomas|james/i.test(v.name))
+            // en-US avoiding known male names
+            || voices.find(v => v.lang === 'en-US' && !/david|mark|alex|fred/i.test(v.name))
+            || voices.find(v => v.lang.startsWith('en'));
 
         if (voice) { u.voice = voice; u.lang = voice.lang; }
         u.rate = 0.9; u.pitch = 1;
