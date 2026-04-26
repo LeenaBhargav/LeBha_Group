@@ -1545,8 +1545,8 @@ function speak(text) {
     u.rate = 0.9; u.pitch = 1;
     u.onerror = e => console.error('[LeBha TTS] error:', e.error);
 
-    // resume() unsticks the Edge/Chrome speechSynthesis stall bug
-    window.speechSynthesis.resume();
+    // resume() only if paused — calling it when not paused can break short utterances
+    if (window.speechSynthesis.paused) window.speechSynthesis.resume();
     window.speechSynthesis.speak(u);
 }
 
@@ -2015,43 +2015,44 @@ function startListening() {
         setTimeout(() => handleInput(t), 100);
     };
     recognition.onerror = e => {
+        // Mark as handled so onend doesn't double-fire the same message
+        gotResult = true;
         mic.classList.remove('listening');
-        console.error('[LeBha Voice] Error code:', e.error);
+        console.error('[LeBha Voice] Error:', e.error);
         if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
             voiceRetries = 0;
-            botMsg("Microphone access was blocked 😊 Please allow microphone permission in your browser settings and try again.", []);
-            return;
-        }
-        if (e.error === 'no-speech') {
-            botMsg("I didn't hear anything 😊 Please tap the mic and speak clearly.", []);
+            botMsg("Microphone access was blocked 😊 Please allow microphone in your browser settings and try again.", []);
             return;
         }
         if (e.error === 'network') {
             voiceRetries = 0;
-            botMsg("Voice recognition needs an internet connection 😊 Please check your connection and try again.", []);
+            botMsg("Voice needs an internet connection 😊 Please check your connection and try again.", []);
             return;
         }
         if (e.error === 'audio-capture') {
             voiceRetries = 0;
-            botMsg("Couldn't access your microphone 😊 Please check that it's connected and not in use by another app.", []);
+            botMsg("Couldn't reach your microphone 😊 Please check it's connected and not in use by another app.", []);
             return;
         }
+        // no-speech or any other error — retry once, then fall back
         if (voiceRetries < 1) {
             voiceRetries++;
-            botMsg("Sorry, I didn't catch that 😊 Could you please speak again?", []);
-            speak("Sorry, I didn't catch that. Could you please speak again?");
+            botMsg("Sorry, I didn't catch that 😊 Please tap the mic and try speaking again.", []);
+            speak("Sorry, I didn't catch that. Please tap the mic and try again.");
         } else {
             voiceRetries = 0;
             botMsg("No worries! Please type your message below 😊", []);
         }
     };
+    // onend always fires — only handle it if onerror didn't already
     recognition.onend = () => {
         mic.classList.remove('listening');
-        // onend fired without a result and without onerror — treat as no-speech
         if (!gotResult) {
+            // Silent end with no result and no error — retry once
             if (voiceRetries < 1) {
                 voiceRetries++;
                 botMsg("Sorry, I didn't catch that 😊 Please tap the mic and try speaking again.", []);
+                speak("Sorry, I didn't catch that. Please tap the mic and try again.");
             } else {
                 voiceRetries = 0;
                 botMsg("No worries! Please type your message below 😊", []);
