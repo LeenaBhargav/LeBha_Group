@@ -1763,7 +1763,7 @@ function handleUniversal(t) {
     // What do you do / What services
     if (/what do you do|what (are|is) (your|lebha)|what (services|do) you (offer|provide|have)|what can you (do|help|offer)|services (do )?you (have|offer|provide)|tell me (your )?services/.test(t)) {
         S.state = 'intent';
-        botMsg("I can only help with LeBha services 😊 Here's what I can assist you with — services we offer to you:",
+        botMsg("I can help with LeBha services 😊 Here's what I can assist you with — services we offer to you:",
             ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos']);
         return true;
     }
