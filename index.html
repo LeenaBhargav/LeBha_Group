@@ -1750,6 +1750,13 @@ function extractCateringData(t) {
 
 // ── Universal Smart Responses ─────────────────────────────────────────────
 function handleUniversal(t) {
+    // What do you do / What services
+    if (/what do you do|what (are|is) (your|lebha)|what (services|do) you (offer|provide|have)|what can you (do|help|offer)|services (do )?you (have|offer|provide)|tell me (your )?services/.test(t)) {
+        S.state = 'intent';
+        botMsg("Great question! 😊 LeBha Group offers 6 services:\n\n🏠 Interior Design\n🎉 Event Management\n🍽️ Catering\n💻 IT Freelancing\n🌱 Organic Fruits\n🎥 Recipe Videos\n\nWhich one can I help you with today?",
+            ['🏠 Interior Design', '🎉 Event Planning', '🍽️ Catering', '💻 IT Freelancing', '🌱 Organic Fruits', '🎥 Recipes & Videos']);
+        return true;
+    }
     // Founder / Who is
     if (/who is (leena|bhargav|founder|owner)|leena.*bhargav|bhargav.*leena|who (are|started|created|built) lebha/.test(t)) {
         botMsg("Leena and Bhargav are the founders of LeBha Group 😊\n\nThe name 'LeBha' is inspired by Leena Bhargav — representing their combined vision of uniting diverse businesses under one identity.", ['About LeBha Group', 'Our Services']);
