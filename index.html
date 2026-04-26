@@ -1667,6 +1667,53 @@ function detectIntent(t) {
     return null;
 }
 
+// ── Multi-Intent Detection (for clarification) ────────────────────────────
+function detectAllIntents(t) {
+    const found = [];
+    if (/interior|home design|room decor|renovation|remodel|bedroom|living room|kitchen|furnish|villa design|office design|inti design|design kavali/.test(t)) found.push('interior');
+    if (/\bevent\b|wedding|marriage|birthday|corporate|party|function|ceremony|anniversary|sangeet|engagement|shaadi|pellikuthuru/.test(t)) found.push('event');
+    if (/\bcater|food serv|buffet|biryani|veg food|non.?veg|thali|tiffin|sweets|khana|bhojanam|vanta kavali/.test(t)) found.push('catering');
+    if (/freelanc|developer|website|mobile app|programmer|digital market|seo|logo design|video edit|coding|website kavali/.test(t)) found.push('freelance');
+    if (/organic|fruit|mango|guava|banana|chiku|farm fresh|pandlu|fruits kavali/.test(t)) found.push('organic');
+    if (/recipe|cooking video|food video|youtube|cooking channel|how to cook|vantalu|recipes cheppu/.test(t)) found.push('media');
+    return found;
+}
+
+function intentLabel(i) {
+    return { interior:'🏠 Interior Design', event:'🎉 Event Planning', catering:'🍽️ Catering',
+             freelance:'💻 IT Freelancing', organic:'🌱 Organic Fruits', media:'🎥 Recipes & Videos' }[i] || i;
+}
+
+function showClarification(intents) {
+    S.state = 'intent';
+    botMsg("Got it 😊 Just to confirm — which service are you looking for?",
+        intents.map(intentLabel));
+}
+
+// ── Smart Data Extraction ──────────────────────────────────────────────────
+function extractEventData(t) {
+    const d = {};
+    if (/wedding|marriage|shaadi|pellikuthuru|nikah/.test(t))           d.eventType = 'Wedding';
+    else if (/birthday|bday|born day/.test(t))                          d.eventType = 'Birthday';
+    else if (/corporate|conference|seminar|office party|business/.test(t)) d.eventType = 'Corporate';
+    else if (/anniversary/.test(t))                                     d.eventType = 'Anniversary';
+    const cnt = t.match(/(\d[\d,]*)\s*(people|members|guests|persons|pax|heads)/);
+    if (cnt) d.guestCount = cnt[0];
+    const mo = t.match(/(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?|\d{1,2}(?:st|nd|rd|th)?\s+(?:of\s+)?[a-z]+|next\s+(?:month|week)|this\s+(?:month|week))/i);
+    if (mo) d.eventDate = mo[0];
+    return d;
+}
+
+function extractCateringData(t) {
+    const d = {};
+    if (/\bveg\b|vegetarian/.test(t) && !/non.?veg/.test(t)) d.foodType = 'Veg';
+    else if (/non.?veg|nonveg|chicken|mutton|fish|prawn/.test(t))       d.foodType = 'Non-Veg';
+    else if (/mixed|both veg|veg and non/.test(t))                      d.foodType = 'Mixed';
+    const cnt = t.match(/(\d[\d,]*)\s*(people|members|guests|persons|pax|heads)/);
+    if (cnt) d.guestCount = cnt[0];
+    return d;
+}
+
 // ── Universal Smart Responses ─────────────────────────────────────────────
 function handleUniversal(t) {
     if (/price|cost|rate|how much|budget|charges|fee|estimate|quote|entha|ela untundi/.test(t)) {
@@ -1707,9 +1754,20 @@ function flowInteriorDesire() {
     botMsg("What would you like from us?", ['Design Ideas', 'Price Estimate', 'Free Consultation']);
 }
 
-function flowEvent() {
-    S.intent = 'event'; S.state = 'event_type';
-    botMsg("Wonderful! 🎉 Lebha Events crafts unforgettable experiences.\n\nWhat kind of event are you planning?", ['Wedding', 'Birthday', 'Corporate', 'Other']);
+function flowEvent(prefill) {
+    S.intent = 'event';
+    if (prefill) Object.assign(S.data, prefill);
+    // Skip straight to first unanswered question
+    if (!S.data.eventType) {
+        S.state = 'event_type';
+        botMsg("Wonderful! 🎉 Lebha Events crafts unforgettable experiences.\n\nWhat kind of event are you planning?", ['Wedding', 'Birthday', 'Corporate', 'Anniversary', 'Other']);
+    } else if (!S.data.eventDate) {
+        flowEventDate();
+    } else if (!S.data.guestCount) {
+        flowEventCount();
+    } else {
+        flowEventScope();
+    }
 }
 function flowEventDate() {
     S.state = 'event_date';
@@ -1724,9 +1782,17 @@ function flowEventScope() {
     botMsg("Do you need full event planning or specific services?", ['Full Planning', 'Decor Only', 'Catering Only', 'Decor + Catering', 'Other Services']);
 }
 
-function flowCatering() {
-    S.intent = 'catering'; S.state = 'catering_details';
-    botMsg("Great! 👍 Lebha Foods creates exceptional culinary experiences.\n\nWhat's the occasion and approximately how many people?", []);
+function flowCatering(prefill) {
+    S.intent = 'catering';
+    if (prefill) Object.assign(S.data, prefill);
+    if (!S.data.occasion) {
+        S.state = 'catering_details';
+        botMsg("Great! 👍 Lebha Foods creates exceptional culinary experiences.\n\nWhat's the occasion and approximately how many people?", []);
+    } else if (!S.data.foodType) {
+        flowCateringFood();
+    } else {
+        flowCateringPrefs();
+    }
 }
 function flowCateringFood() {
     S.state = 'catering_food';
@@ -1860,10 +1926,12 @@ function handleInput(text) {
     switch (S.state) {
         case 'intent':
         case 'welcome': {
-            const intent = detectIntent(t);
+            const allI = detectAllIntents(t);
+            if (allI.length > 1)        { showClarification(allI); return; }
+            const intent = allI[0] || detectIntent(t);
             if (intent === 'interior')  { flowInterior();  return; }
-            if (intent === 'event')     { flowEvent();     return; }
-            if (intent === 'catering')  { flowCatering();  return; }
+            if (intent === 'event')     { flowEvent(extractEventData(t)); return; }
+            if (intent === 'catering')  { flowCatering(extractCateringData(t)); return; }
             if (intent === 'freelance') { flowFreelance(); return; }
             if (intent === 'organic')   { flowOrganic();   return; }
             if (intent === 'media')     { flowMedia();     return; }
@@ -1874,19 +1942,36 @@ function handleInput(text) {
             break;
         }
 
-        case 'interior_branch':   S.data.branch       = text; flowInteriorSpace();    break;
-        case 'interior_space':    S.data.spaceType     = text; flowInteriorTimeline(); break;
-        case 'interior_timeline': S.data.timeline      = text; flowInteriorDesire();  break;
-        case 'interior_desire':   S.data.desire        = text; startLeadCapture();    break;
+        case 'interior_branch':   S.data.branch    = text; flowInteriorSpace();    break;
+        case 'interior_space':    S.data.spaceType  = text; flowInteriorTimeline(); break;
+        case 'interior_timeline': S.data.timeline   = text; flowInteriorDesire();  break;
+        case 'interior_desire':   S.data.desire     = text; startLeadCapture();    break;
 
-        case 'event_type':  S.data.eventType  = text; flowEventDate();  break;
-        case 'event_date':  S.data.eventDate  = text; flowEventCount(); break;
+        case 'event_type': {
+            const ed = extractEventData(t);
+            S.data.eventType  = ed.eventType  || text;
+            if (ed.guestCount) S.data.guestCount = ed.guestCount;
+            if (ed.eventDate)  S.data.eventDate  = ed.eventDate;
+            S.data.eventDate ? flowEventCount() : flowEventDate();
+            break;
+        }
+        case 'event_date': {
+            S.data.eventDate = text;
+            S.data.guestCount ? flowEventScope() : flowEventCount();
+            break;
+        }
         case 'event_count': S.data.guestCount = text; flowEventScope(); break;
         case 'event_scope': S.data.scope      = text; startLeadCapture(); break;
 
-        case 'catering_details': S.data.occasion  = text; flowCateringFood();  break;
-        case 'catering_food':    S.data.foodType  = text; flowCateringPrefs(); break;
-        case 'catering_prefs':   S.data.prefs     = text; startLeadCapture();  break;
+        case 'catering_details': {
+            const cd = extractCateringData(t);
+            S.data.occasion = text;
+            if (cd.foodType) S.data.foodType = cd.foodType;
+            cd.foodType ? flowCateringPrefs() : flowCateringFood();
+            break;
+        }
+        case 'catering_food':  S.data.foodType = text; flowCateringPrefs(); break;
+        case 'catering_prefs': S.data.prefs    = text; startLeadCapture();  break;
 
         case 'freelance_type':     S.data.freelanceType = text; flowFreelanceDesc();     break;
         case 'freelance_desc':     S.data.description   = text; flowFreelanceTimeline(); break;
