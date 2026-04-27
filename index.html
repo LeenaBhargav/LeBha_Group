@@ -1369,24 +1369,24 @@
 <!-- ════════════════════════════════════
      CHATBOT
 ════════════════════════════════════ -->
-<aside id="chatbot" aria-label="LeBha Assistant">
-    <button class="chat-toggle" id="chat-toggle-btn" onclick="toggleChat()" aria-label="Open LeBha Assistant">
+<aside id="chatbot" aria-label="LeBha Buddy">
+    <button class="chat-toggle" id="chat-toggle-btn" onclick="toggleChat()" aria-label="Open LeBha Buddy">
         <span class="chat-icon">💬</span>
         <span class="close-icon">✕</span>
     </button>
 
-    <div class="chat-window" id="chat-window" role="dialog" aria-label="LeBha Chat Assistant" aria-live="polite">
+    <div class="chat-window" id="chat-window" role="dialog" aria-label="LeBha Buddy" aria-live="polite">
         <div class="chat-header">
             <div class="chat-header-avatar" aria-hidden="true">✦</div>
             <div class="chat-header-info">
-                <h4>LeBha Assistant</h4>
+                <h4>LeBha Buddy</h4>
                 <p>Many Services. One Vision.</p>
             </div>
             <div class="chat-online" title="Online" aria-label="Online"></div>
         </div>
 
         <div class="chat-restart-bar">
-            <a class="chat-whatsapp-btn" href="https://wa.me/1234567890" target="_blank" title="Chat on WhatsApp">💬 WhatsApp</a>
+            <a class="chat-whatsapp-btn" href="https://wa.me/917660899890" target="_blank" title="Chat on WhatsApp">💬 WhatsApp</a>
             <button class="chat-restart-btn" onclick="restartChat()" title="Start over">↺ Start Over</button>
         </div>
 
@@ -1512,7 +1512,9 @@ document.getElementById('contact-form').addEventListener('submit', e => {
 // 1. Add Gmail as a service → copy Service ID
 // 2. Create a template with: {{from_name}}, {{phone}}, {{service}}, {{message}} → copy Template ID
 // 3. Account › API Keys → copy Public Key
-const EJS = { svc: 'YOUR_SERVICE_ID', tpl: 'YOUR_TEMPLATE_ID', key: 'YOUR_PUBLIC_KEY' };
+const EJS = { svc: 'service_15nthv3', tpl: 'template_6gkmm6q', key: 'rg0GGSHiSAS9jynuU' };
+// CallMeBot Setup — follow setup steps to get your API key, then fill below:
+const CMB = { phone: '917660899890', apikey: 'YOUR_CALLMEBOT_APIKEY' };
 
 const chatToggleBtn = document.getElementById('chat-toggle-btn');
 const chatWindow    = document.getElementById('chat-window');
@@ -1590,6 +1592,21 @@ function hideTyping() {
 }
 
 // ── Message Helpers ───────────────────────────────────────────────────────
+function extractVoiceResponse(text) {
+    const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 2);
+    const fullClean = lines.join(' ').replace(/[^\x20-\x7E\s]/g, '').replace(/\s+/g, ' ').trim();
+    // Already short — speak fully
+    if (fullClean.length <= 120) return text;
+    // Find last line ending with ? (the key question)
+    const lastQ = [...lines].reverse().find(l => /\?$/.test(l.trim()));
+    if (lastQ) return lastQ;
+    // Find last line ending with !
+    const lastEx = [...lines].reverse().find(l => /!$/.test(l.trim()));
+    if (lastEx) return lastEx;
+    // Fallback: last non-empty line
+    return lines[lines.length - 1] || text;
+}
+
 function botMsg(text, quick = []) {
     showTyping();
     setTimeout(() => {
@@ -1607,7 +1624,7 @@ function botMsg(text, quick = []) {
             btn.onclick = () => handleQuick(label);
             chatQuickBtns.appendChild(btn);
         });
-        speak(text);
+        speak(extractVoiceResponse(text));
     }, 420);
 }
 
@@ -1650,10 +1667,9 @@ function isBusinessHours() {
 function showWelcome() {
     const hour = new Date().getHours();
     const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-    S.state = 'returning_check';
+    S.state = 'intent';
     botMsg(
-        greet + "! Welcome to LeBha Group 😊\n\nI'm LeBha Assistant — here to help you explore our services.\n\nHave you used our services before?",
-        ["Yes, I'm a returning customer", 'No, first time here']
+        greet + "! Welcome to LeBha Group 😊\n\nI'm LeBha Buddy — how may I help you today?"
     );
 }
 
@@ -1667,7 +1683,7 @@ function detectIntent(t) {
     // Events
     // English: wedding, birthday, corporate, party, function, occasion, ceremony, anniversary, reception, conference, gathering
     // Telugu-English: shaadi, pellikuthuru, pandaga, panduga, function cheyali, event organize, sangeet, mehendi, engagement, haldi, pooja
-    if (/\bevent|wedding|birthday|corporate|celebrat|party|function|occasion|ceremony|anniversary|reception|conference|seminar|gathering|get.?together|inaugurat|retirement|felicitat|farewell|mandap|sangeet|mehendi|engagement|haldi|pooja|puja|festival|organize|plan an event|host an event|shaadi|pellikuthuru|pellipandiri|pandaga|panduga|event kavali|event cheyali|function kavali|party organize|wedding plan|birthday plan/.test(t)) return 'event';
+    if (/\bevent|wedding|marriage|nikah|birthday|corporate|celebrat|party|function|occasion|ceremony|anniversary|reception|conference|seminar|gathering|get.?together|inaugurat|retirement|felicitat|farewell|mandap|sangeet|mehendi|engagement|haldi|pooja|puja|festival|organize|plan an event|host an event|shaadi|pellikuthuru|pellipandiri|pandaga|panduga|event kavali|event cheyali|function kavali|party organize|wedding plan|birthday plan/.test(t)) return 'event';
 
     // Catering
     // English: catering, food, meal, menu, buffet, cook, chef, snacks, biryani, tiffin, thali, vegetarian, non-veg
@@ -1760,6 +1776,11 @@ function handleUniversal(t) {
         botMsg("You can contact us through:\n\n📧 ch.leena89@gmail.com\n\nYou can also tap the 💬 WhatsApp button at the top of this chat to reach us directly 😊", ['Explore Services', 'Start Over']);
         return true;
     }
+    // Bot name
+    if (/what('s| is) your name|your name|what (should|do) (i|we) call you|who are you called/.test(t)) {
+        botMsg("I'm LeBha Buddy 😊 — your virtual assistant for LeBha Group!\n\nHow can I help you today?", ['Our Services', '👀 Just Exploring']);
+        return true;
+    }
     // What do you do / What services
     if (/what do you do|what (are|is) (your|lebha)|what (services|do) you (offer|provide|have)|what can you (do|help|offer)|services (do )?you (have|offer|provide)|tell me (your )?services/.test(t)) {
         S.state = 'intent';
@@ -1770,6 +1791,11 @@ function handleUniversal(t) {
     // Founder / Who is
     if (/who is (leena|bhargav|founder|owner)|leena.*bhargav|bhargav.*leena|who (are|started|created|built) lebha/.test(t)) {
         botMsg("Leena and Bhargav are the founders of LeBha Group 😊\n\nThe name 'LeBha' is inspired by Leena Bhargav — representing their combined vision of uniting diverse businesses under one identity.", ['About LeBha Group', 'Our Services']);
+        return true;
+    }
+    // Bot identity — "who are you"
+    if (/^(who are you|what are you|are you a bot|are you human|are you real|what is your name\?)$/.test(t)) {
+        botMsg("I'm LeBha Buddy! 😊 Your virtual assistant for LeBha Group.\n\nI'm here to help you explore our services — Interior Design, Events, Catering, IT Freelancing, Organic Fruits & Media Content.\n\nHow can I help you today?", ['Our Services', '👀 Just Exploring']);
         return true;
     }
     // About LeBha
@@ -1785,7 +1811,7 @@ function handleUniversal(t) {
     }
     // WhatsApp
     if (/whatsapp|watsapp|whats app/.test(t)) {
-        window.open('https://wa.me/1234567890', '_blank');
+        window.open('https://wa.me/917660899890', '_blank');
         setTimeout(() => botMsg("Opened WhatsApp! 😊 Our team will respond shortly.\n\nAnything else I can help with?", ['Our Services', 'Start Over']), 180);
         return true;
     }
@@ -1817,11 +1843,10 @@ function handleUniversal(t) {
         botMsg("Pricing depends on your specific requirements 😊\n\n🎉 Special offer: 10% off your first order with LeBha Group!\n✨ Free consultation for Interior Design\n\nShare a few details and our team will give you a quick estimate!", ['Tell Us Your Requirements', 'Explore Services']);
         return true;
     }
-    // Greetings
+    // Greetings — ask returning check
     if (/^(hi|hello|hey|hola|howdy|namaste|namaskar|good morning|good afternoon|good evening|vanakkam|meeru ela unnaru|ela unnaru)/.test(t)) {
-        const hour = new Date().getHours();
-        const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
-        botMsg(greet + "! 👋 How can I assist you today?", ['Our Services', '👀 Just Exploring']); return true;
+        S.state = 'returning_check';
+        botMsg("Hi there! 👋 Welcome to LeBha Group 😊\n\nHave you used our services before?", ["Yes, I'm a returning customer", 'No, first time here']); return true;
     }
     // Thanks
     if (/thank|thanks|dhanyavadalu|chala manchidi|super|excellent|great work/.test(t)) {
@@ -1949,12 +1974,31 @@ function startLeadCapture() {
 }
 
 function handleLeadName(name) {
-    S.data.name = name.trim();
+    const t = name.toLowerCase().trim();
+    if (/^(no|nope|skip|cancel|don'?t|not now|prefer not|no thanks|i don'?t want|don'?t want to share)/.test(t)) {
+        S.state = 'intent';
+        botMsg("No problem! 😊 Feel free to explore our services anytime.", ['Our Services', 'Start Over']);
+        return;
+    }
+    const nameMatch = name.match(/(?:my name is|i(?:'m| am)|call me)\s+([a-zA-Z]+)/i);
+    const cleanName = nameMatch ? nameMatch[1] : name.trim();
+    const servicePhrase = /free consultation|design ideas|price estimate|full package|event management|decor only|catering only|web.*dev|graphic design|digital marketing|video editing|content writing|place.*order|know prices|our services|start over|just exploring|explore/i;
+    if (servicePhrase.test(cleanName) || cleanName.length > 30 || !/^[a-zA-Z\s.'-]+$/.test(cleanName)) {
+        botMsg("That doesn't look like a name 😊 Could you please share your name?", []);
+        return;
+    }
+    S.data.name = cleanName;
     S.state = 'lead_phone';
     botMsg("Nice to meet you, " + S.data.name + "! 😊\n\nWhat's your phone number?", []);
 }
 
 function handleLeadPhone(phone) {
+    const t = phone.toLowerCase().trim();
+    if (/^(no|nope|skip|cancel|don'?t|not now|prefer not|no thanks|i don'?t want|don'?t want to share)/.test(t)) {
+        S.state = 'intent';
+        botMsg("No problem! 😊 You can reach us anytime via WhatsApp or email.", ['Our Services', 'Start Over']);
+        return;
+    }
     if (phone.replace(/\D/g, '').length < 10) {
         botMsg("Please enter a valid 10-digit phone number 😊", []);
         return;
@@ -1991,6 +2035,7 @@ async function sendLead() {
     };
     botMsg("Thank you, " + S.data.name + "! 🙏\n\nOur team will contact you at " + S.data.phone + " shortly.\n\nMeanwhile, feel free to explore more options 😊",
         ['Explore More Services', 'Start Over']);
+    // Email notification via EmailJS
     if (typeof emailjs !== 'undefined' && EJS.key !== 'YOUR_PUBLIC_KEY') {
         try {
             await emailjs.send(EJS.svc, EJS.tpl, {
@@ -2001,6 +2046,41 @@ async function sendLead() {
             }, { publicKey: EJS.key });
         } catch(e) { console.warn('EmailJS error:', e); }
     }
+    // WhatsApp notification via CallMeBot
+    if (CMB.apikey !== 'YOUR_CALLMEBOT_APIKEY') {
+        try {
+            const waText = encodeURIComponent(
+                'New Lead from LeBha Buddy Chatbot\n' +
+                'Name: ' + S.data.name + '\n' +
+                'Phone: ' + S.data.phone + '\n' +
+                'Service: ' + (labels[S.intent] || 'General Enquiry')
+            );
+            await fetch('https://api.callmebot.com/whatsapp.php?phone=' + CMB.phone + '&text=' + waText + '&apikey=' + CMB.apikey);
+        } catch(e) { console.warn('CallMeBot error:', e); }
+    }
+}
+
+// ── Re-prompt current flow question ──────────────────────────────────────
+function repromptCurrentState() {
+    const prompts = {
+        'interior_branch':    ["I didn't quite get that 😊 Is this for a new home or a renovation?", ['New Home', 'Renovation']],
+        'interior_space':     ["I didn't quite get that 😊 What type of space is it?", ['2BHK / 3BHK', '4BHK / 5BHK', 'Villa', 'Independent House', 'Office / Commercial']],
+        'interior_timeline':  ["I didn't quite get that 😊 Do you have a timeline in mind?", ['Within 1 Month', '1–3 Months', '3–6 Months', 'Flexible']],
+        'interior_desire':    ["I didn't quite get that 😊 What would you like from us?", ['Design Ideas', 'Price Estimate', 'Free Consultation']],
+        'event_type':         ["I didn't quite get that 😊 What kind of event are you planning?", ['Wedding', 'Birthday', 'Corporate', 'Anniversary', 'Engagement', 'Other']],
+        'event_date':         ["I didn't quite get that 😊 When is the event? (approximate date or month is fine)", []],
+        'event_count':        ["I didn't quite get that 😊 Approximately how many guests are you expecting?", ['100–150', '150–250', '250–350', '350–500', '500+']],
+        'event_scope':        ["I didn't quite get that 😊 Do you need a full package or specific services?", ['Full Package (Venue + Decor + Catering)', 'Event Management Only', 'Decor Only', 'Catering Only']],
+        'catering_details':   ["I didn't quite get that 😊 What's the occasion and how many guests?", []],
+        'catering_food':      ["I didn't quite get that 😊 What type of food are you looking for?", ['Veg', 'Non-Veg', 'Mixed']],
+        'catering_prefs':     ["I didn't quite get that 😊 Any specific dishes or cuisine preferences?", []],
+        'freelance_type':     ["I didn't quite get that 😊 What kind of work do you need?", ['Web / App Development', 'Graphic Design', 'Digital Marketing', 'Video Editing', 'Content Writing', 'Other']],
+        'freelance_desc':     ["I didn't quite get that 😊 Can you briefly describe your requirement?", []],
+        'freelance_timeline': ["I didn't quite get that 😊 What's your timeline for this project?", ['ASAP', 'Within 2 Weeks', '1 Month', 'Flexible']],
+    };
+    const p = prompts[S.state];
+    if (p) botMsg(p[0], p[1]);
+    else botMsg("I didn't quite catch that 😊 Could you please clarify?", []);
 }
 
 // ── Main Input Handler ────────────────────────────────────────────────────
@@ -2012,16 +2092,44 @@ const MID_FLOW_STATES = [
     'organic_browse','organic_price','media_explore','media_cta'
 ];
 
+// Final-answer states — never re-route based on intent (button labels can contain service words)
+const PROTECTED_STATES = ['event_scope','catering_prefs','interior_desire','freelance_timeline','freelance_desc'];
+
 function handleInput(text) {
     const t = text.toLowerCase().trim();
-    if (handleUniversal(t)) return;
+    if (handleUniversal(t)) {
+        // If user asked a general question mid-flow, remind them where they were
+        if (MID_FLOW_STATES.includes(S.state)) {
+            setTimeout(() => repromptCurrentState(), 1000);
+        }
+        return;
+    }
 
-    // If user is mid-flow but clearly asks about a DIFFERENT service, re-route
+    // If user is mid-flow — smart handling
     if (MID_FLOW_STATES.includes(S.state)) {
         const newIntent = detectIntent(t);
-        if (newIntent && newIntent !== S.intent && !['pricing','location'].includes(newIntent)) {
+        // Don't re-route from protected final-answer states (button labels may contain service words)
+        if (!PROTECTED_STATES.includes(S.state) && newIntent && newIntent !== S.intent && !['pricing','location'].includes(newIntent)) {
             S.state = 'intent'; S.data = {};
             handleInput(text); return;
+        }
+        // Detect name sharing mid-flow — save it and re-prompt current question
+        const nameInFlow = text.match(/(?:my name is|call me)\s+([a-zA-Z]+)/i);
+        if (nameInFlow) {
+            S.data.name = nameInFlow[1];
+            botMsg("Got it, " + nameInFlow[1] + "! 😊 I'll remember that.", []);
+            repromptCurrentState(); return;
+        }
+        // Detect clearly off-topic casual inputs — re-prompt current question
+        if (/^(what are you up to|what'?s up|how are you|how'?s it going|wassup|what do you think|never mind|nvm|forget it|lol|haha|hmm+|umm+|ok cool|that'?s cool|nice|wow|interesting|nothing|hey)$/.test(t)) {
+            repromptCurrentState(); return;
+        }
+        // Detect vague/uncertain answers — re-prompt (expanded to catch multi-word phrases)
+        // Exception: interior_timeline handles "no" specially (maps to Flexible)
+        if (S.state !== 'interior_timeline' &&
+            (/^(no|nope|na|n\/a|none)$/.test(t) ||
+             /^(no idea|i have no idea|idk|i don'?t know|not sure|no clue|beats me|don'?t know|dunno|i have no clue|i don'?t have any idea)/.test(t))) {
+            repromptCurrentState(); return;
         }
     }
 
@@ -2068,8 +2176,28 @@ function handleInput(text) {
 
         case 'interior_branch':   S.data.branch    = text; flowInteriorSpace();    break;
         case 'interior_space':    S.data.spaceType  = text; flowInteriorTimeline(); break;
-        case 'interior_timeline': S.data.timeline   = text; flowInteriorDesire();  break;
-        case 'interior_desire':   S.data.desire     = text; startLeadCapture();    break;
+        case 'interior_timeline': {
+            if (/^(no|nope|no timeline|don'?t have|not sure|na|n\/a|nothing|none)$/.test(t)) {
+                S.data.timeline = 'Flexible';
+                botMsg("No worries! 😊 We'll keep the timeline flexible.", []);
+                flowInteriorDesire();
+            } else {
+                S.data.timeline = text;
+                flowInteriorDesire();
+            }
+            break;
+        }
+        case 'interior_desire': {
+            if (/timeline|time line|yes.*timeline|have.*timeline|\d+\s*(month|week|day)|within|asap|urgent|flexible|schedule/.test(t)) {
+                botMsg("Got it! 😊 Let me ask about your timeline again.", []);
+                S.data.timeline = null;
+                flowInteriorTimeline();
+            } else {
+                S.data.desire = text;
+                startLeadCapture();
+            }
+            break;
+        }
 
         case 'event_type': {
             const ed = extractEventData(t);
@@ -2080,14 +2208,45 @@ function handleInput(text) {
             break;
         }
         case 'event_date': {
+            if (/wedding|marriage|birthday|corporate|anniversary|engagement|reception|party|nikah|shaadi/.test(t)) {
+                botMsg("Got it! 😊 Let me re-confirm the event type.", []);
+                S.data.eventType = null; S.data.eventDate = null;
+                flowEvent(S.data); return;
+            }
+            // Reject bare numbers with no date context (e.g. "5", "6", "12")
+            if (/^\d{1,2}$/.test(t)) {
+                botMsg("Please share a date or month — for example 'June', 'next month', or '15th December' 😊", []);
+                return;
+            }
             S.data.eventDate = text;
             S.data.guestCount ? flowEventScope() : flowEventCount();
             break;
         }
-        case 'event_count': S.data.guestCount = text; flowEventScope(); break;
-        case 'event_scope': S.data.scope      = text; startLeadCapture(); break;
+        case 'event_count': {
+            if (/wedding|marriage|birthday|corporate|anniversary|engagement|reception|party|nikah|shaadi/.test(t)) {
+                repromptCurrentState(); return;
+            }
+            // Reject numbers clearly below minimum (we handle 100–500 guests)
+            const guestNum = parseInt(t.replace(/\D/g, ''), 10);
+            if (!isNaN(guestNum) && guestNum < 50) {
+                botMsg("We handle events from 100 to 500 guests 😊 Could you share an approximate guest count?",
+                    ['100–150', '150–250', '250–350', '350–500', '500+']);
+                return;
+            }
+            S.data.guestCount = text; flowEventScope(); break;
+        }
+        case 'event_scope': {
+            if (/show|what events|can you|list|which service|tell me|options|help me choose/.test(t) &&
+                !/package|management|decor|catering only|decor.*catering/.test(t)) {
+                repromptCurrentState(); return;
+            }
+            S.data.scope = text; startLeadCapture(); break;
+        }
 
         case 'catering_details': {
+            if (t.length < 4 || !/[aeiou]/i.test(t.replace(/\s/g, ''))) {
+                repromptCurrentState(); return;
+            }
             const cd = extractCateringData(t);
             S.data.occasion = text;
             if (cd.foodType) S.data.foodType = cd.foodType;
